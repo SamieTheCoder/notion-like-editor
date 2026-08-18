@@ -12,15 +12,173 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* ------------------------------------------------------------------ editor */
+
+.tiptap :first-child {
+  margin-top: 0;
+}
+
+/* Neutralize paragraph margin inside task items so the checkbox stays
+   vertically centered with the first (and usually only) line of text. */
+.tiptap [data-type="taskItem"] > div > p,
+.tiptap li[data-checked] > div > p {
+  margin-bottom: 0;
+}
+
+/* Placeholder text on empty nodes */
+.tiptap .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-gray-400);
+}
+
+/* Selected node outline (images, embeds, dividers) */
+.tiptap .ProseMirror-selectednode {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Gap cursor */
+.tiptap .ProseMirror-gapcursor::after {
+  border-top-color: var(--color-gray-400);
+}
+
+/* ------------------------------------------------------------------- table */
+
+.tiptap table {
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.tiptap table td,
+.tiptap table th {
+  position: relative;
+  min-width: 6rem;
+}
+
+/* Column resize affordance */
+.tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: var(--color-blue-500);
+  pointer-events: none;
+}
+
+.tiptap.resize-cursor {
+  cursor: col-resize;
+}
+
+/* Cell selection highlight */
+.tiptap .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-blue-500) 18%, transparent);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------- toggle / details */
+
+.tiptap details > summary {
+  list-style: none;
+}
+
+.tiptap details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tiptap details > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1rem;
+  color: var(--color-gray-400);
+  transition: transform 150ms ease;
+}
+
+.tiptap details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------------------------------ syntax highlighting */
+/* Minimal one-dark-ish theme for lowlight tokens inside code blocks. */
+
+.tiptap pre code .hljs-comment,
+.tiptap pre code .hljs-quote {
+  color: #7f848e;
+  font-style: italic;
+}
+
+.tiptap pre code .hljs-keyword,
+.tiptap pre code .hljs-selector-tag,
+.tiptap pre code .hljs-literal,
+.tiptap pre code .hljs-type {
+  color: #c678dd;
+}
+
+.tiptap pre code .hljs-string,
+.tiptap pre code .hljs-regexp,
+.tiptap pre code .hljs-addition {
+  color: #98c379;
+}
+
+.tiptap pre code .hljs-number,
+.tiptap pre code .hljs-symbol,
+.tiptap pre code .hljs-bullet {
+  color: #d19a66;
+}
+
+.tiptap pre code .hljs-title,
+.tiptap pre code .hljs-section,
+.tiptap pre code .hljs-function .hljs-title {
+  color: #61afef;
+}
+
+.tiptap pre code .hljs-attr,
+.tiptap pre code .hljs-attribute,
+.tiptap pre code .hljs-variable,
+.tiptap pre code .hljs-template-variable {
+  color: #e06c75;
+}
+
+.tiptap pre code .hljs-built_in,
+.tiptap pre code .hljs-class .hljs-title {
+  color: #e6c07b;
+}
+
+.tiptap pre code .hljs-meta,
+.tiptap pre code .hljs-deletion {
+  color: #be5046;
+}
+
+.tiptap pre code .hljs-emphasis {
+  font-style: italic;
+}
+
+.tiptap pre code .hljs-strong {
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------- drag drop */
+
+.tiptap .ProseMirror-dropcursor {
+  border-top: 2px solid var(--color-blue-500);
+}
+
+/* The drag handle is positioned by floating-ui, which writes `position`,
+   `left` and `top` as inline styles. Do not set those here: a stylesheet rule
+   either loses to the inline style or fights it. Placement offsets belong in
+   the extension's `computePositionConfig` (see BlockDragHandle.tsx). */
