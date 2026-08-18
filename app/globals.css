@@ -93,24 +93,127 @@ body {
 
 /* ------------------------------------------------------- toggle / details */
 
-.tiptap details > summary {
+/* Exported HTML uses native <details>/<summary> so it stays interactive with
+   no JavaScript. The marker is replaced with a rotating chevron so the static
+   export matches what the editor shows. */
+.tiptap details > summary,
+details[data-type="toggleBlock"] > summary {
   list-style: none;
 }
 
-.tiptap details > summary::-webkit-details-marker {
+.tiptap details > summary::-webkit-details-marker,
+details[data-type="toggleBlock"] > summary::-webkit-details-marker {
   display: none;
 }
 
-.tiptap details > summary::before {
-  content: "▸";
+.tiptap details > summary::before,
+details[data-type="toggleBlock"] > summary::before {
+  content: "";
   display: inline-block;
-  width: 1rem;
-  color: var(--color-gray-400);
-  transition: transform 150ms ease;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  border-right: 1.5px solid var(--color-gray-400);
+  border-bottom: 1.5px solid var(--color-gray-400);
+  transform: rotate(-45deg);
+  transform-origin: center;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.tiptap details[open] > summary::before {
+.tiptap details[open] > summary::before,
+details[data-type="toggleBlock"][open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* ---- editor nodeView ---- */
+
+.toggle-block-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.toggle-block-chevron {
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.toggle-block-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toggle-block-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.125rem;
+  border-radius: 0.25rem;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  /* Only transform and colors animate, so this stays on the compositor. */
+  transition:
+    transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toggle-block-button:hover {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-600);
+  }
+}
+
+.toggle-block-button:active {
+  transform: scale(0.92) var(--toggle-chevron-rotate, rotate(0deg));
+}
+
+.toggle-block-button:focus-visible {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: 1px;
+}
+
+/* Open state: rotate the chevron and reveal the body. */
+.toggle-block[data-open="true"] .toggle-block-button {
+  --toggle-chevron-rotate: rotate(90deg);
   transform: rotate(90deg);
+}
+
+.toggle-block[data-open="false"] .toggle-block-button {
+  --toggle-chevron-rotate: rotate(0deg);
+  transform: rotate(0deg);
+}
+
+.toggle-block[data-open="false"] [data-type="toggleContent"] {
+  display: none;
+}
+
+/* Inside the nodeView the wrapper is a div, so <summary> has no <details>
+   parent to give it list-item semantics. Normalize it to a text line. */
+.toggle-block-content > summary {
+  display: block;
+  list-style: none;
+}
+
+.toggle-block-content > summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle-block-content > summary::before {
+  content: none;
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-block-button,
+  .tiptap details > summary::before,
+  details[data-type="toggleBlock"] > summary::before {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------ syntax highlighting */

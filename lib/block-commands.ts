@@ -5,6 +5,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type { ReactNode } from 'react'
+
 export type BlockGroup =
   | 'Basic blocks'
   | 'Lists'
@@ -16,8 +18,8 @@ export interface BlockCommand {
   title: string
   /** Short helper text. */
   description: string
-  /** Monospace glyph shown in the leading badge. */
-  icon: string
+  /** Icon element rendered in the leading badge. */
+  icon: ReactNode
   /** Extra words that should match this item when filtering. */
   searchTerms: string[]
   group: BlockGroup
@@ -36,7 +38,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Text',
     description: 'Plain paragraph',
-    icon: '¶',
+    icon: 'T',
     searchTerms: ['paragraph', 'text', 'plain', 'body'],
     group: 'Basic blocks',
     run: (editor, range) => base(editor, range).setParagraph().run(),
@@ -71,7 +73,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Quote',
     description: 'Capture a quotation',
-    icon: '❝',
+    icon: 'Q',
     searchTerms: ['blockquote', 'quote', 'cite'],
     group: 'Basic blocks',
     run: (editor, range) => base(editor, range).toggleBlockquote().run(),
@@ -79,7 +81,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Divider',
     description: 'Visually separate sections',
-    icon: '—',
+    icon: '--',
     searchTerms: ['divider', 'horizontal', 'rule', 'hr', 'line', 'separator'],
     group: 'Basic blocks',
     run: (editor, range) => base(editor, range).setHorizontalRule().run(),
@@ -89,7 +91,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Bulleted list',
     description: 'Simple unordered list',
-    icon: '•',
+    icon: 'Ul',
     searchTerms: ['bullet', 'unordered', 'ul', 'list'],
     group: 'Lists',
     run: (editor, range) => base(editor, range).toggleBulletList().run(),
@@ -105,7 +107,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'To-do list',
     description: 'Track tasks with checkboxes',
-    icon: '☑',
+    icon: 'Td',
     searchTerms: ['todo', 'task', 'checkbox', 'check', 'list'],
     group: 'Lists',
     run: (editor, range) => base(editor, range).toggleTaskList().run(),
@@ -113,7 +115,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Toggle list',
     description: 'Collapsible content',
-    icon: '▸',
+    icon: 'Tg',
     searchTerms: ['toggle', 'collapse', 'details', 'accordion', 'expand'],
     group: 'Lists',
     run: (editor, range) => base(editor, range).setToggleBlock().run(),
@@ -122,23 +124,22 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   // ---------------------------------------------------------------- Media
   {
     title: 'Image',
-    description: 'Embed an image from a URL',
-    icon: '🖼',
-    searchTerms: ['image', 'img', 'picture', 'photo', 'media'],
+    description: 'Upload an image or paste a URL',
+    icon: 'Img',
+    searchTerms: ['image', 'img', 'picture', 'photo', 'media', 'upload'],
     group: 'Media',
     run: (editor, range) => {
-      const src = window.prompt('Image URL')
-      if (!src) {
-        base(editor, range).run()
-        return
-      }
-      base(editor, range).setImage({ src }).run()
+      if (range) editor.chain().focus().deleteRange(range).run()
+      // Dynamic import to keep block-commands free of client-only code
+      import('@/lib/upload').then(({ triggerImageUpload }) => {
+        triggerImageUpload(editor)
+      })
     },
   },
   {
     title: 'Video',
     description: 'Embed a YouTube video',
-    icon: '▶',
+    icon: 'Yt',
     searchTerms: ['video', 'youtube', 'embed', 'media', 'movie'],
     group: 'Media',
     run: (editor, range) => {
@@ -162,8 +163,8 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   // ---------------------------------------------------------------- Advanced
   {
     title: 'Table',
-    description: '3×3 table with header row',
-    icon: '⊞',
+    description: '3x3 table with header row',
+    icon: 'Tb',
     searchTerms: ['table', 'grid', 'spreadsheet', 'rows', 'columns'],
     group: 'Advanced',
     run: (editor, range) =>
@@ -174,7 +175,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Callout',
     description: 'Highlight important info',
-    icon: '💡',
+    icon: 'Ci',
     searchTerms: ['callout', 'info', 'note', 'panel', 'aside', 'admonition'],
     group: 'Advanced',
     run: (editor, range) =>
@@ -183,7 +184,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Warning callout',
     description: 'Draw attention to a caveat',
-    icon: '⚠️',
+    icon: 'Cw',
     searchTerms: ['warning', 'caution', 'callout', 'alert'],
     group: 'Advanced',
     run: (editor, range) =>
@@ -192,7 +193,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Success callout',
     description: 'Confirm a positive outcome',
-    icon: '✅',
+    icon: 'Cs',
     searchTerms: ['success', 'tip', 'callout', 'good', 'done'],
     group: 'Advanced',
     run: (editor, range) =>
@@ -201,7 +202,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   {
     title: 'Error callout',
     description: 'Flag something dangerous',
-    icon: '🚫',
+    icon: 'Ce',
     searchTerms: ['error', 'danger', 'callout', 'bad', 'stop'],
     group: 'Advanced',
     run: (editor, range) =>

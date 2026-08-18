@@ -85,14 +85,14 @@ export function SelectionBubbleMenu({ editor }: SelectionBubbleMenuProps) {
   return (
     <BubbleMenu
       editor={editor}
-      options={{ placement: 'top', offset: 8 }}
+      options={{ placement: 'top-start', offset: 10, flip: true, shift: true }}
       shouldShow={({ editor: e, from, to }) => {
         if (from === to) return false
         if (e.isActive('codeBlock')) return false
         if (e.isActive('image') || e.isActive('youtube')) return false
         return true
       }}
-      className="flex items-center gap-0.5 rounded-lg bg-gray-900 px-1 py-1 shadow-xl ring-1 ring-black/20"
+      className="z-50 flex items-center gap-0.5 rounded-lg bg-gray-900 px-1 py-1 shadow-xl ring-1 ring-black/20"
     >
       <Btn onClick={() => c().toggleBold().run()} active={state.bold} title="Bold">
         <Bold {...ICON} />

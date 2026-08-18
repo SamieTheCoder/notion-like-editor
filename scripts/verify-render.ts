@@ -1,10 +1,12 @@
 /**
  * Verifies that every node/mark in the shared schema renders to Tailwind-classed
- * HTML through the same `generateHTML` path the API route uses.
+ * HTML through the same `generateHTML` path the API route uses, and that the
+ * email variant emits inline CSS instead.
  * Run with: npx tsx scripts/verify-render.ts
  */
 import { generateHTML } from '@tiptap/html/server'
 import { extensions } from '../lib/tiptap-extensions'
+import { renderEmailHTML } from '../lib/render-html'
 
 const doc = {
   type: 'doc',
@@ -148,10 +150,54 @@ for (const [label, needle] of checks) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}  ${ok ? '' : `(missing: ${needle})`}`)
 }
 
-console.log(`\n${checks.length - failed}/${checks.length} checks passed`)
+/* ------------------------------------------------- email (inline CSS) mode */
+
+const emailHtml = renderEmailHTML(doc as never)
+
+// Email output must carry inline styles, NO class attributes, and NO <details>.
+const emailChecks: [string, string, boolean][] = [
+  ['h1 has font-size:36px', 'font-size:36px', true],
+  ['h1 has font-weight:700', 'font-weight:700', true],
+  ['paragraph has font-size:16px', 'font-size:16px', true],
+  ['paragraph has line-height:28px', 'line-height:28px', true],
+  ['bold has font-weight:700', 'font-weight:700', true],
+  ['italic has font-style:italic', 'font-style:italic', true],
+  ['underline has text-decoration:underline', 'text-decoration:underline', true],
+  ['strike has text-decoration:line-through', 'text-decoration:line-through', true],
+  ['inline code has background-color:#f3f4f6', 'background-color:#f3f4f6', true],
+  ['link has color:#2563eb', 'color:#2563eb', true],
+  ['bullet list has list-style-type:disc', 'list-style-type:disc', true],
+  ['ordered list has list-style-type:decimal', 'list-style-type:decimal', true],
+  ['blockquote has border-left:4px solid', 'border-left:4px solid', true],
+  ['callout has background-color:#fffbeb', 'background-color:#fffbeb', true],
+  ['code block has background-color:#111827', 'background-color:#111827', true],
+  ['toggle is div not details', '<div', true],
+  ['no <details> in email', '<details', false],
+  ['no <summary> in email', '<summary', false],
+  ['no Tailwind class on h1', 'class="text-4xl', false],
+  ['no Tailwind class on paragraph', 'class="text-base', false],
+  ['toggle has border-radius:6px', 'border-radius:6px', true],
+  ['hr has border-top', 'border-top:1px solid', true],
+]
+
+for (const [label, needle, shouldContain] of emailChecks) {
+  const present = emailHtml.includes(needle)
+  const ok = present === shouldContain
+  if (!ok) failed++
+  console.log(
+    `${ok ? 'PASS' : 'FAIL'}  [email] ${label}  ${
+      ok ? '' : shouldContain ? `(missing: ${needle})` : `(should not contain: ${needle})`
+    }`
+  )
+}
+
+const total = checks.length + emailChecks.length
+console.log(`\n${total - failed}/${total} checks passed`)
 
 if (failed > 0) {
-  console.log('\n--- generated HTML ---\n')
+  console.log('\n--- tailwind HTML ---\n')
   console.log(html)
+  console.log('\n--- email HTML ---\n')
+  console.log(emailHtml)
   process.exit(1)
 }

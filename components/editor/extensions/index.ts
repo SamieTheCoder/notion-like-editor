@@ -14,7 +14,8 @@ export { Youtube } from './Youtube'
 export { Table, TableRow, TableHeader, TableCell } from './Table'
 export { Callout } from './Callout'
 export type { CalloutVariant } from './Callout'
-export { ToggleBlock, ToggleSummary, ToggleContent } from './ToggleBlock'
+export { ToggleBlock, ToggleSummary, ToggleContent, toggleBlockEmail, toggleBlockTailwind } from './ToggleBlock'
+export type { ToggleRenderMode, ToggleBlockOptions } from './ToggleBlock'
 
 // Inline marks
 export { Bold } from './Bold'

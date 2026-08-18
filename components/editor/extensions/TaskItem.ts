@@ -3,32 +3,31 @@ import { TaskItem as BaseTaskItem } from '@tiptap/extension-list'
 
 export const TaskItem = BaseTaskItem.extend({
   renderHTML({ node, HTMLAttributes }) {
+    const contentStyle = 'flex:1;min-width:0;'
+    const contentClass = node.attrs.checked
+      ? 'flex-1 min-w-0 line-through text-gray-400'
+      : 'flex-1 min-w-0'
+
     return [
       'li',
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        class: 'flex items-center gap-2',
         'data-type': 'taskItem',
         'data-checked': node.attrs.checked ? 'true' : 'false',
+        style: 'list-style:none;display:flex;flex-direction:row;align-items:baseline;gap:8px;margin-bottom:4px;',
       }),
       [
-        'label',
-        { class: 'flex items-center select-none' },
-        [
-          'input',
-          {
-            type: 'checkbox',
-            class:
-              'h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer',
-            ...(node.attrs.checked ? { checked: 'checked' } : {}),
-          },
-        ],
+        'input',
+        {
+          type: 'checkbox',
+          style: 'width:16px;height:16px;margin:0;flex-shrink:0;vertical-align:middle;',
+          ...(node.attrs.checked ? { checked: 'checked' } : {}),
+        },
       ],
       [
-        'div',
+        'span',
         {
-          class: node.attrs.checked
-            ? 'flex-1 line-through text-gray-400 [&>p]:mb-0'
-            : 'flex-1 [&>p]:mb-0',
+          class: contentClass,
+          style: contentStyle,
         },
         0,
       ],

@@ -1,16 +1,19 @@
-// `@tiptap/html` ships a DOM-based renderer by default; the `/server` entry is
-// the one that works in the Node runtime used by route handlers.
-import { generateHTML } from '@tiptap/html/server'
 import type { JSONContent } from '@tiptap/core'
-import { extensions } from '@/lib/tiptap-extensions'
+import { renderTailwindHTML, renderEmailHTML } from '@/lib/render-html'
 
 export const runtime = 'nodejs'
 
+const MODES = ['tailwind', 'email'] as const
+type Mode = (typeof MODES)[number]
+
 /**
- * POST { json: ProseMirrorJSON } -> { html }
+ * POST { json: ProseMirrorJSON, mode?: 'tailwind' | 'email' } -> { html, mode }
  *
- * Uses the same extension array as the client editor, so the markup returned
- * here is byte-identical to `editor.getHTML()`.
+ * `tailwind` (default) uses the same extension array as the client editor, so
+ * the markup returned is byte-identical to `editor.getHTML()`.
+ *
+ * `email` swaps in the inline-CSS variants for nodes that have one, for
+ * consumers with no Tailwind build step.
  *
  * NOTE: this endpoint is unauthenticated. It only transforms the JSON in the
  * request body and does not read or write any stored data, but if you expose it
@@ -25,7 +28,10 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Body must be valid JSON' }, { status: 400 })
   }
 
-  const json = (body as { json?: JSONContent })?.json
+  const { json, mode: rawMode } = (body ?? {}) as {
+    json?: JSONContent
+    mode?: string
+  }
 
   if (!json || typeof json !== 'object' || json.type !== 'doc') {
     return Response.json(
@@ -34,9 +40,19 @@ export async function POST(req: Request) {
     )
   }
 
+  if (rawMode !== undefined && !MODES.includes(rawMode as Mode)) {
+    return Response.json(
+      { error: `mode must be one of: ${MODES.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
+  const mode: Mode = (rawMode as Mode) ?? 'tailwind'
+
   try {
-    const html = generateHTML(json, extensions)
-    return Response.json({ html })
+    const html =
+      mode === 'email' ? renderEmailHTML(json) : renderTailwindHTML(json)
+    return Response.json({ html, mode })
   } catch (error) {
     // Most likely a node/mark in the document that is not in the schema.
     return Response.json(
