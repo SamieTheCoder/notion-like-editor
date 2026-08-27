@@ -47,9 +47,33 @@ body {
   border-radius: 0.5rem;
 }
 
+/* The button block spans the full line so it can be aligned, which would make
+   the generic outline above draw a wide box around empty space. It renders its
+   own ring tight around the button instead. */
+.tiptap .ProseMirror-selectednode[data-node-type='buttonBlock'] {
+  outline: none;
+}
+
 /* Gap cursor */
 .tiptap .ProseMirror-gapcursor::after {
   border-top-color: var(--color-gray-400);
+}
+
+/* Merge field chips — styled in the editor, rendered as raw #TOKEN# text */
+.tiptap .merge-field {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  white-space: nowrap;
+  user-select: all;
+}
+.tiptap .merge-field::selection {
+  background-color: #bfdbfe;
 }
 
 /* ------------------------------------------------------------------- table */
@@ -65,6 +89,17 @@ body {
 .tiptap table th {
   position: relative;
   min-width: 6rem;
+}
+
+/* Borderless table: Tiptap's default gives cells visible borders from the
+   schema CSS. When the document says borders=false, remove them so the editor
+   matches the output. The data attribute is set by renderHTML and NodeView. */
+.tiptap table[data-borders='false'] td,
+.tiptap table[data-borders='false'] th {
+  border-color: transparent;
+}
+.tiptap table[data-borders='false'] tr {
+  border-color: transparent;
 }
 
 /* Column resize affordance */

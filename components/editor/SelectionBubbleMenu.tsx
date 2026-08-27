@@ -3,6 +3,7 @@
 import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import type { Editor } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
 import { useCallback } from 'react'
 import {
   Bold,
@@ -86,8 +87,12 @@ export function SelectionBubbleMenu({ editor }: SelectionBubbleMenuProps) {
     <BubbleMenu
       editor={editor}
       options={{ placement: 'top-start', offset: 10, flip: true, shift: true }}
-      shouldShow={({ editor: e, from, to }) => {
+      shouldShow={({ editor: e, state, from, to }) => {
         if (from === to) return false
+        // Selecting a leaf block (image, video, button, divider) yields a
+        // NodeSelection, which still has from !== to. Those nodes carry their
+        // own controls, so the text menu must not stack a second menu on top.
+        if (state.selection instanceof NodeSelection) return false
         if (e.isActive('codeBlock')) return false
         if (e.isActive('image') || e.isActive('youtube')) return false
         return true

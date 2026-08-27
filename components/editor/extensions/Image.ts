@@ -57,9 +57,9 @@ export const Image = BaseImage.extend({
 
     const wrapperStyle: Record<string, string> = {}
     const wrapperClass = {
-      left: 'flex justify-start my-4',
-      center: 'flex justify-center my-4',
-      right: 'flex justify-end my-4',
+      left: 'flex justify-start my-4 mx-0',
+      center: 'flex justify-center my-4 mx-0',
+      right: 'flex justify-end my-4 mx-0',
     }[align as 'left' | 'center' | 'right']
 
     const imgStyle = width ? `width: ${width}px; max-width: 100%; height: auto;` : ''
@@ -70,7 +70,7 @@ export const Image = BaseImage.extend({
       [
         'img',
         mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-          class: 'rounded-lg max-w-full h-auto shadow-sm',
+          class: 'max-w-full h-auto block',
           ...(imgStyle ? { style: imgStyle } : {}),
         }),
       ],

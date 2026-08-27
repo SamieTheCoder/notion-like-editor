@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Check } from 'lucide-react'
+import { ArrowLeft, Trash2, Check, Braces } from 'lucide-react'
 import { TiptapEditor } from './TiptapEditor'
+import { EmailShellFrame } from './EmailShellFrame'
+import { useEmailShells, EmailShellPicker } from './EmailShellPicker'
+import { VariablePanel } from './VariablePanel'
 
 interface DocEditorProps {
   docId: string
@@ -20,6 +23,25 @@ export function DocEditor({ docId, initialTitle, initialContent }: DocEditorProp
   const editorJsonRef = useRef<Record<string, unknown>>(initialContent)
   const titleRef = useRef(initialTitle)
   const docIdRef = useRef(docId)
+
+  const {
+    shells,
+    activeShell,
+    activeShellId,
+    setActiveShellId,
+    showShell,
+    setShowShell,
+  } = useEmailShells()
+
+  const [variablePanelOpen, setVariablePanelOpen] = useState(false)
+  const [editorInstance, setEditorInstance] = useState<import('@tiptap/core').Editor | null>(null)
+
+  // The /variable slash command dispatches this event so the panel opens.
+  useEffect(() => {
+    const handler = () => setVariablePanelOpen(true)
+    window.addEventListener('open-variable-picker', handler)
+    return () => window.removeEventListener('open-variable-picker', handler)
+  }, [])
 
   const doSave = useCallback(async () => {
     setSaveStatus('saving')
@@ -129,6 +151,28 @@ export function DocEditor({ docId, initialTitle, initialContent }: DocEditorProp
           )}
         </span>
 
+        <EmailShellPicker
+          shells={shells}
+          activeShellId={activeShellId}
+          onSelect={setActiveShellId}
+          showShell={showShell}
+          onToggle={() => setShowShell(!showShell)}
+        />
+
+        <button
+          type="button"
+          onClick={() => setVariablePanelOpen((v) => !v)}
+          aria-pressed={variablePanelOpen}
+          title={variablePanelOpen ? 'Hide variables panel' : 'Show variables panel'}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+            variablePanelOpen
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:bg-gray-200 hover:text-gray-700'
+          }`}
+        >
+          <Braces size={16} strokeWidth={1.5} />
+        </button>
+
         <button
           onClick={handleDelete}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
@@ -138,11 +182,40 @@ export function DocEditor({ docId, initialTitle, initialContent }: DocEditorProp
         </button>
       </div>
 
-      {/* Editor */}
-      <TiptapEditor
-        initialContent={initialContent}
-        onUpdate={onContentChange}
-      />
+      {/* Editor, optionally framed by the email shell so the author sees the
+          header and footer their body will ship inside. The frame is chrome —
+          it never becomes part of the document JSON.
+
+          `templateId` is passed regardless of the frame toggle: hiding the
+          preview is a view preference, not a change to which shell the document
+          renders and copies with. */}
+      <div className="flex">
+        <div className="min-w-0 flex-1">
+          {showShell && activeShell ? (
+            <EmailShellFrame config={activeShell.config}>
+              <TiptapEditor
+                initialContent={initialContent}
+                onUpdate={onContentChange}
+                templateId={activeShellId}
+                onEditorReady={(e) => { setEditorInstance(e) }}
+              />
+            </EmailShellFrame>
+          ) : (
+            <TiptapEditor
+              initialContent={initialContent}
+              onUpdate={onContentChange}
+              templateId={activeShellId}
+              onEditorReady={(e) => { setEditorInstance(e) }}
+            />
+          )}
+        </div>
+
+        <VariablePanel
+          editor={editorInstance}
+          open={variablePanelOpen}
+          onClose={() => setVariablePanelOpen(false)}
+        />
+      </div>
     </div>
   )
 }

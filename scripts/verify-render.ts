@@ -85,6 +85,38 @@ const doc = {
     { type: 'horizontalRule' },
     { type: 'image', attrs: { src: 'https://example.com/a.png', alt: 'a', align: 'center' } },
     {
+      type: 'buttonBlock',
+      attrs: {
+        label: 'Get started',
+        href: 'https://example.com/go',
+        variant: 'primary',
+        size: 'default',
+        align: 'center',
+      },
+    },
+    {
+      type: 'buttonBlock',
+      attrs: {
+        label: 'Custom colours',
+        href: 'https://example.com/custom',
+        variant: 'primary',
+        size: 'large',
+        align: 'left',
+        bgColor: '#ff5a1f',
+        textColor: '#00204a',
+      },
+    },
+    {
+      type: 'buttonBlock',
+      attrs: {
+        label: 'Bad link',
+        href: 'javascript:alert(1)',
+        variant: 'outline',
+        size: 'small',
+        align: 'left',
+      },
+    },
+    {
       type: 'table',
       content: [
         {
@@ -101,6 +133,19 @@ const doc = {
         },
       ],
     },
+    {
+      type: 'table',
+      attrs: { borders: false, density: 'none' },
+      content: [
+        {
+          type: 'tableRow',
+          attrs: { borders: false, density: 'none' },
+          content: [
+            { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, borders: false, density: 'none' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'NoBorder' }] }] },
+          ],
+        },
+      ],
+    },
     { type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'centered' }] },
   ],
 }
@@ -108,7 +153,7 @@ const doc = {
 const html = generateHTML(doc as never, extensions)
 
 // Each entry: a human label plus a substring that must appear in the output.
-const checks: [string, string][] = [
+const checks: [string, string, boolean?][] = [
   ['h1 tailwind', 'text-4xl font-bold'],
   ['h2 tailwind', 'text-3xl font-bold'],
   ['h3 tailwind', 'text-2xl font-semibold'],
@@ -135,19 +180,39 @@ const checks: [string, string][] = [
   ['code language class', 'language-typescript'],
   ['horizontal rule', '<hr class="my-6'],
   ['image figure', '<figure'],
-  ['image rounded', 'rounded-lg max-w-full'],
+  ['image rounded', 'max-w-full h-auto block'],
+  ['button label', 'Get started'],
+  ['button href', 'href="https://example.com/go"'],
+  ['button classes', 'inline-block no-underline rounded-md font-semibold'],
+  ['button variant', 'bg-blue-600 text-white'],
+  ['button align', 'my-4 text-center'],
+  ['button custom colours inline', 'background-color: #ff5a1f; color: #00204a;'],
+  // The custom-coloured button must not also carry the variant colour classes,
+  // because the email renderer appends class styles after the style attribute
+  // and the class would win, discarding the author's colour.
+  ['custom button drops bg-blue-600', 'text-base bg-blue-600', false],
+  ['custom button drops text-white', 'text-base bg-blue-600 text-white', false],
+  // javascript: URLs are stripped, and the anchor renders without an href.
+  ['javascript: url stripped', 'javascript:', false],
+  ['unlinked button still renders', 'Bad link', true],
   ['table wrapper', 'overflow-x-auto'],
   ['table border', 'border-collapse'],
   ['table header', 'bg-gray-50'],
-  ['table cell', 'px-3 py-2 align-top'],
+  ['table cell', 'px-3 py-2'],
+  ['borderless table has no border class', 'NoBorder'],
+  ['compact density uses px-2 py-1', 'px-2 py-0'],
   ['text align', 'text-align: center'],
 ]
 
 let failed = 0
-for (const [label, needle] of checks) {
-  const ok = html.includes(needle)
+for (const [label, needle, shouldContain = true] of checks) {
+  const ok = html.includes(needle) === shouldContain
   if (!ok) failed++
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}  ${ok ? '' : `(missing: ${needle})`}`)
+  console.log(
+    `${ok ? 'PASS' : 'FAIL'}  ${label}  ${
+      ok ? '' : shouldContain ? `(missing: ${needle})` : `(unexpected: ${needle})`
+    }`
+  )
 }
 
 /* ------------------------------------------------- email (inline CSS) mode */
@@ -178,6 +243,16 @@ const emailChecks: [string, string, boolean][] = [
   ['no Tailwind class on paragraph', 'class="text-base', false],
   ['toggle has border-radius:6px', 'border-radius:6px', true],
   ['hr has border-top', 'border-top:1px solid', true],
+  ['button has display:inline-block', 'display:inline-block', true],
+  ['button has text-decoration:none', 'text-decoration:none', true],
+  ['button has background-color:#2563eb', 'background-color:#2563eb', true],
+  ['button has color:#ffffff', 'color:#ffffff', true],
+  ['button wrapper has text-align:center', 'text-align:center', true],
+  ['button keeps its href', 'https://example.com/go', true],
+  ['no Tailwind class on button', 'class="inline-block', false],
+  ['custom bg survives into email', 'background-color: #ff5a1f', true],
+  ['custom text colour survives into email', 'color: #00204a', true],
+  ['no javascript: url in email', 'javascript:', false],
 ]
 
 for (const [label, needle, shouldContain] of emailChecks) {

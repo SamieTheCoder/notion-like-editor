@@ -50,9 +50,22 @@ let editorRef: import('@tiptap/core').Editor | null = null
 interface TiptapEditorProps {
   initialContent?: Record<string, unknown> | string
   onUpdate?: (json: Record<string, unknown>) => void
+  /**
+   * Email shell to wrap the `email` output in. When set, the HTML shown and
+   * copied is the full email — real header and footer — rather than the body
+   * alone. Changing it re-renders the email output.
+   */
+  templateId?: number | null
+  /** Called once when the editor instance is ready. */
+  onEditorReady?: (editor: import('@tiptap/core').Editor) => void
 }
 
-export function TiptapEditor({ initialContent, onUpdate }: TiptapEditorProps = {}) {
+export function TiptapEditor({
+  initialContent,
+  onUpdate,
+  templateId = null,
+  onEditorReady,
+}: TiptapEditorProps = {}) {
   const [panel, setPanel] = useState<Panel>('none')
   const [htmlMode, setHtmlMode] = useState<HtmlMode>('fragment')
   const [rawHtml, setRawHtml] = useState('')
@@ -113,8 +126,9 @@ export function TiptapEditor({ initialContent, onUpdate }: TiptapEditorProps = {
 
   useEffect(() => {
     editorRef = editor
+    if (editor) onEditorReady?.(editor)
     return () => { editorRef = null }
-  }, [editor])
+  }, [editor, onEditorReady])
 
   const showHtml = useCallback(() => {
     if (!editor) return
@@ -148,28 +162,62 @@ export function TiptapEditor({ initialContent, onUpdate }: TiptapEditorProps = {
 
   const loadEmailHtml = useCallback(async () => {
     if (!editor) return
-    setEmailError(null)
     try {
       const res = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ json: editor.getJSON(), mode: 'email' }),
+        body: JSON.stringify({
+          json: editor.getJSON(),
+          mode: 'email',
+          // Omitted when no shell is selected, which keeps the standalone
+          // email output as the fallback.
+          ...(templateId !== null ? { templateId } : {}),
+        }),
       })
       const data = (await res.json()) as { html?: string; error?: string }
-      if (data.html) setEmailHtml(data.html)
-      else setEmailError(data.error ?? 'Render failed')
+      if (data.html) {
+        setEmailHtml(data.html)
+        setEmailError(null)
+      } else {
+        setEmailError(data.error ?? 'Render failed')
+      }
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : String(error))
     }
-  }, [editor])
+  }, [editor, templateId])
 
-  const selectHtmlMode = useCallback(
-    (mode: HtmlMode) => {
-      setHtmlMode(mode)
-      if (mode === 'email' && emailHtml === null) void loadEmailHtml()
-    },
-    [emailHtml, loadEmailHtml]
-  )
+  // Picking a different shell invalidates output rendered with the previous
+  // one. Adjusting state during render — rather than in an effect — is the
+  // documented way to react to a changed prop, and avoids rendering one frame
+  // of stale HTML.
+  const [renderedTemplateId, setRenderedTemplateId] = useState(templateId)
+  if (renderedTemplateId !== templateId) {
+    setRenderedTemplateId(templateId)
+    setEmailHtml(null)
+    setEmailError(null)
+  }
+
+  // Fetch whenever the email tab is showing but has nothing to show.
+  //
+  // set-state-in-effect is disabled for the call below because it is a false
+  // positive: the rule traces into `loadEmailHtml`, sees setState, and assumes
+  // it runs synchronously. It does not — the function guards on `editor`, then
+  // awaits `fetch`, so every state update happens in the async continuation.
+  // Rendering on the server in response to state is exactly the external-system
+  // synchronisation effects are for.
+  useEffect(() => {
+    if (panel !== 'html' || htmlMode !== 'email') return
+    if (emailHtml !== null || emailError !== null) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadEmailHtml()
+  }, [panel, htmlMode, emailHtml, emailError, loadEmailHtml])
+
+  const selectHtmlMode = useCallback((mode: HtmlMode) => {
+    // Switching to `email` needs no fetch here — the effect above notices the
+    // tab is showing with nothing rendered and loads it. One owner, no double
+    // request.
+    setHtmlMode(mode)
+  }, [])
 
   const displayed = useMemo(() => {
     if (panel === 'json') return jsonText

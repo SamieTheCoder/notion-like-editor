@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Minus,
   Table,
+  MousePointerClick,
   Undo2,
   Redo2,
 } from 'lucide-react'
@@ -99,6 +100,7 @@ export function Toolbar({ editor }: ToolbarProps) {
         blockquote: e.isActive('blockquote'),
         codeBlock: e.isActive('codeBlock'),
         callout: e.isActive('callout'),
+        buttonBlock: e.isActive('buttonBlock'),
         inTable: e.isActive('table'),
         alignLeft: e.isActive({ textAlign: 'left' }),
         alignCenter: e.isActive({ textAlign: 'center' }),
@@ -266,6 +268,13 @@ export function Toolbar({ editor }: ToolbarProps) {
         title="Insert table"
       >
         <Table {...ICON} />
+      </Btn>
+      <Btn
+        onClick={() => c().setButtonBlock().run()}
+        active={state.buttonBlock}
+        title="Insert button"
+      >
+        <MousePointerClick {...ICON} />
       </Btn>
 
       {state.codeBlock && (

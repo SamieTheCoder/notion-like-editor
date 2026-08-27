@@ -12,8 +12,20 @@ export { HorizontalRule } from './HorizontalRule'
 export { Image } from './Image'
 export { Youtube } from './Youtube'
 export { Table, TableRow, TableHeader, TableCell } from './Table'
+export type { TableDensity } from './Table'
+export { TABLE_DENSITIES } from './Table'
 export { Callout } from './Callout'
 export type { CalloutVariant } from './Callout'
+export {
+  ButtonNode,
+  sanitizeHref,
+  sanitizeColor,
+  buildButtonClass,
+  buildButtonStyle,
+  BUTTON_BG_SWATCHES,
+  BUTTON_TEXT_SWATCHES,
+} from './ButtonNode'
+export type { ButtonVariant, ButtonSize, ButtonAlign, ButtonAttrs } from './ButtonNode'
 export { ToggleBlock, ToggleSummary, ToggleContent, toggleBlockEmail, toggleBlockTailwind } from './ToggleBlock'
 export type { ToggleRenderMode, ToggleBlockOptions } from './ToggleBlock'
 
@@ -25,3 +37,4 @@ export { Strike } from './Strike'
 export { Underline } from './Underline'
 export { Highlight } from './Highlight'
 export { Link } from './Link'
+export { MergeField } from './MergeField'

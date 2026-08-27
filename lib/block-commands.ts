@@ -173,6 +173,27 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
         .run(),
   },
   {
+    title: 'Variable',
+    description: 'Insert a merge-field token',
+    icon: '{x}',
+    searchTerms: ['variable', 'merge', 'field', 'token', 'placeholder', 'dynamic'],
+    group: 'Advanced',
+    run: (editor, range) => {
+      if (range) editor.chain().focus().deleteRange(range).run()
+      // Dispatch a custom event the sidebar listens for. This opens the panel
+      // so the user picks a variable rather than guessing token names.
+      window.dispatchEvent(new CustomEvent('open-variable-picker'))
+    },
+  },
+  {
+    title: 'Button',
+    description: 'Clickable button with a link',
+    icon: 'Btn',
+    searchTerms: ['button', 'cta', 'link', 'action', 'click'],
+    group: 'Advanced',
+    run: (editor, range) => base(editor, range).setButtonBlock().run(),
+  },
+  {
     title: 'Callout',
     description: 'Highlight important info',
     icon: 'Ci',

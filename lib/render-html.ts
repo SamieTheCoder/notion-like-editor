@@ -32,7 +32,10 @@ const CLASS_TO_CSS: Record<string, string> = {
   'text-2xl': 'font-size:24px;',
   'text-3xl': 'font-size:30px;',
   'text-4xl': 'font-size:36px;',
+  'leading-5': 'line-height:20px;',
+  'leading-6': 'line-height:24px;',
   'leading-7': 'line-height:28px;',
+  'leading-8': 'line-height:32px;',
   'leading-relaxed': 'line-height:1.625;',
   'tracking-tight': 'letter-spacing:-0.025em;',
   'tracking-wide': 'letter-spacing:0.025em;',
@@ -55,11 +58,19 @@ const CLASS_TO_CSS: Record<string, string> = {
   'mt-8': 'margin-top:32px;',
   'my-4': 'margin-top:16px;margin-bottom:16px;',
   'my-6': 'margin-top:24px;margin-bottom:24px;',
+  'mx-0': 'margin-left:0;margin-right:0;',
   'pl-4': 'padding-left:16px;',
   'pl-6': 'padding-left:24px;',
+  'px-2': 'padding-left:8px;padding-right:8px;',
   'px-3': 'padding-left:12px;padding-right:12px;',
   'px-4': 'padding-left:16px;padding-right:16px;',
+  'px-5': 'padding-left:20px;padding-right:20px;',
+  'px-6': 'padding-left:24px;padding-right:24px;',
+  'py-0': 'padding-top:0;padding-bottom:0;',
+  'py-1': 'padding-top:4px;padding-bottom:4px;',
+  'py-1.5': 'padding-top:6px;padding-bottom:6px;',
   'py-2': 'padding-top:8px;padding-bottom:8px;',
+  'py-2.5': 'padding-top:10px;padding-bottom:10px;',
   'py-3': 'padding-top:12px;padding-bottom:12px;',
   'p-4': 'padding:16px;',
   'px-1.5': 'padding-left:6px;padding-right:6px;',
@@ -78,6 +89,7 @@ const CLASS_TO_CSS: Record<string, string> = {
   'text-pink-600': 'color:#db2777;',
   'text-blue-600': 'color:#2563eb;',
   'text-blue-900': 'color:#1e3a5f;',
+  'text-white': 'color:#ffffff;',
   'text-amber-900': 'color:#78350f;',
   'text-green-900': 'color:#14532d;',
   'text-red-900': 'color:#7f1d1d;',
@@ -85,6 +97,7 @@ const CLASS_TO_CSS: Record<string, string> = {
   'bg-gray-100': 'background-color:#f3f4f6;',
   'bg-gray-900': 'background-color:#111827;',
   'bg-blue-50': 'background-color:#eff6ff;',
+  'bg-blue-600': 'background-color:#2563eb;',
   'bg-amber-50': 'background-color:#fffbeb;',
   'bg-green-50': 'background-color:#f0fdf4;',
   'bg-red-50': 'background-color:#fef2f2;',
@@ -95,6 +108,7 @@ const CLASS_TO_CSS: Record<string, string> = {
   'border-gray-200': 'border-color:#e5e7eb;',
   'border-gray-300': 'border-color:#d1d5db;',
   'border-gray-600': 'border-color:#4b5563;',
+  'border-blue-600': 'border-color:#2563eb;',
   'border-t': 'border-top:1px solid #e5e7eb;',
   'border-l': 'border-left:1px solid #e5e7eb;',
   border: 'border:1px solid #e5e7eb;',
@@ -137,7 +151,12 @@ const CLASS_TO_CSS: Record<string, string> = {
   'shadow-xl': '',
 
   // Display / misc
+  block: 'display:block;',
+  'inline-block': 'display:inline-block;',
+  'no-underline': 'text-decoration:none;',
   'text-left': 'text-align:left;',
+  'text-center': 'text-align:center;',
+  'text-right': 'text-align:right;',
   'align-top': 'vertical-align:top;',
   relative: 'position:relative;',
 }
@@ -212,7 +231,13 @@ const EMAIL_FONT_LINKS = [
  *
  * Works in Gmail, Outlook, Apple Mail, Yahoo Mail.
  */
-export function renderEmailHTML(json: JSONContent): string {
+/**
+ * Inlines every Tailwind class as a `style` attribute and swaps elements email
+ * clients do not support, returning only the content markup — no document
+ * wrapper. Use this when composing into a master shell; use `renderEmailHTML`
+ * when you want a standalone document.
+ */
+export function renderEmailBody(json: JSONContent): string {
   let html = generateHTML(json, extensions)
 
   // Structural replacements for unsupported elements
@@ -270,6 +295,15 @@ export function renderEmailHTML(json: JSONContent): string {
     /(<li[^>]*data-type="taskItem"[^>]*>[\s\S]*?<p\s+style="[^"]*?)margin-bottom:\d+px;/g,
     '$1margin-bottom:0;'
   )
+
+  return html
+}
+
+/**
+ * Produces a complete, standalone email document around the rendered body.
+ */
+export function renderEmailHTML(json: JSONContent): string {
+  const html = renderEmailBody(json)
 
   // Wrap in a complete email document
   return `<!doctype html>

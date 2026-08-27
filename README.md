@@ -26,7 +26,11 @@ link, highlight (6 colors), text color (8 colors), subscript, superscript.
 **Editing experience**
 - Slash menu (`/`) with grouped, searchable blocks
 - Bubble menu on text selection
-- Drag handle in the gutter to reorder blocks, plus a `+` to insert below
+- Drag handle in the gutter to reorder blocks, plus a `+` to insert below.
+  Blocks nested in a callout, quote, toggle or list get their own handle,
+  anchored to the same gutter column as top-level blocks and centered on the
+  block's first line. A container's first line grabs the whole container, so a
+  callout still moves as one unit
 - Sticky toolbar with a "turn into" block converter
 - Markdown input rules (`# `, `- `, `1. `, `> `, ``` ``` ``, `**bold**`, …)
 - Smart typography, trailing-node click target, word/character count
@@ -83,6 +87,7 @@ npm run dev             # dev server
 npm run build           # production build (also type-checks)
 npm run lint            # eslint
 npm run verify:render   # assert Tailwind classes in server-rendered HTML
+npm run verify:nested   # browser check: drag handle on nested blocks (needs dev server)
 ```
 
 ## Notes and caveats

@@ -2,7 +2,7 @@
 
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import type { Editor } from '@tiptap/react'
-import { TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { offset } from '@floating-ui/dom'
@@ -36,12 +36,15 @@ interface BlockDragHandleProps {
 /** Uniform icon sizing + stroke across the whole menu. */
 const ICON = { size: 16, strokeWidth: 1.5 } as const
 
-const MARKER_NODES = new Set(['listItem', 'taskItem'])
+/** Horizontal breathing room between a block's left edge and the handle. */
 const GAP_DEFAULT = 8
-const GAP_LIST = 30
 
 interface Placement {
+  /** Distance from the target block's left edge to the handle's right edge. */
   gap: number
+  /** Offset from the target block's top to the top of its first text line. */
+  lineTop: number
+  /** Height of that first line, used to center the handle on it. */
   lineHeight: number
 }
 
@@ -50,10 +53,171 @@ const placements = new WeakMap<Editor, Placement>()
 function getPlacement(editor: Editor): Placement {
   let p = placements.get(editor)
   if (!p) {
-    p = { gap: GAP_DEFAULT, lineHeight: 0 }
+    p = { gap: GAP_DEFAULT, lineTop: 0, lineHeight: 0 }
     placements.set(editor, p)
   }
   return p
+}
+
+/* ------------------------------------------------------- nested targeting */
+
+/**
+ * Containers whose first child block *is* their first visual line. They have
+ * no separate header row, so hovering that line has to grab the container —
+ * the same trick Tiptap's built-in `listItemFirstChild` rule uses for list
+ * items. Lines 2..n inside them stay individually draggable.
+ */
+const FIRST_LINE_CONTAINERS = new Set(['callout', 'blockquote'])
+
+/** Structural parts of the toggle node view; never drag targets themselves. */
+const TOGGLE_STRUCTURE = new Set(['toggleSummary', 'toggleContent'])
+
+/** Cell content defers to the table, so the whole table stays draggable. */
+const TABLE_CELLS = new Set(['tableCell', 'tableHeader'])
+
+/**
+ * Structural subset of Tiptap's `RuleContext`. Declared locally so this file
+ * only depends on `@tiptap/extension-drag-handle-react`, which is the package
+ * listed in package.json.
+ */
+interface DragRuleContext {
+  node: PMNode
+  parent: PMNode | null
+  isFirst: boolean
+}
+
+const NESTED_OPTIONS = {
+  /**
+   * Left-edge detection is the bug. It deducts `strength * depth` from the
+   * hovered node whenever the pointer comes within 12px of that node's left
+   * edge, which promotes the ancestor instead. A paragraph inside a callout
+   * sits 16px inside the callout's padding, so moving the pointer left toward
+   * the handle crossed the threshold: the paragraph's handle disappeared and
+   * the callout's handle took over. With detection off, the target is decided
+   * by the rules below and by depth, so it no longer depends on how close the
+   * pointer is to the gutter.
+   */
+  edgeDetection: 'none' as const,
+  defaultRules: true,
+  rules: [
+    {
+      id: 'containerFirstChild',
+      evaluate: ({ parent, isFirst }: DragRuleContext) =>
+        isFirst && parent && FIRST_LINE_CONTAINERS.has(parent.type.name) ? 1000 : 0,
+    },
+    {
+      id: 'excludeToggleStructure',
+      evaluate: ({ node }: DragRuleContext) =>
+        TOGGLE_STRUCTURE.has(node.type.name) ? 1000 : 0,
+    },
+    {
+      id: 'tableCellContent',
+      evaluate: ({ parent }: DragRuleContext) =>
+        parent && TABLE_CELLS.has(parent.type.name) ? 1000 : 0,
+    },
+  ],
+}
+
+/* ------------------------------------------------------------- measurement */
+
+/** The block's top-level ancestor element, i.e. a direct child of the editor. */
+function topLevelAncestor(editor: Editor, dom: HTMLElement): HTMLElement {
+  const root = editor.view.dom
+  let current = dom
+  while (current.parentElement && current.parentElement !== root) {
+    current = current.parentElement
+  }
+  return current
+}
+
+/**
+ * Viewport rect of the block's first line of text. Measured with a Range so
+ * multi-line blocks and padded containers (callout, quote, toggle) report the
+ * line the handle should align with, not the whole box.
+ */
+function firstLineRect(dom: HTMLElement): { top: number; height: number } {
+  const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT)
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    const value = text.textContent
+    if (!value || !value.trim()) continue
+    const range = document.createRange()
+    range.setStart(text, 0)
+    range.setEnd(text, 1)
+    const rect = range.getClientRects()[0]
+    if (rect && rect.height > 0) return { top: rect.top, height: rect.height }
+  }
+
+  // Empty block: fall back to its own line box, offset past any top padding.
+  const rect = dom.getBoundingClientRect()
+  const cs = window.getComputedStyle(dom)
+  const parsed = Number.parseFloat(cs.lineHeight)
+  return {
+    top: rect.top + (Number.parseFloat(cs.paddingTop) || 0),
+    height: Number.isFinite(parsed) ? parsed : Number.parseFloat(cs.fontSize) * 1.2,
+  }
+}
+
+/**
+ * Anchor every handle to one gutter column — the one its top-level ancestor
+ * would use. Offsetting a nested block by a flat 8px would drop the handle
+ * onto the callout's padding and tinted background, or onto a list's marker.
+ */
+function measurePlacement(editor: Editor, dom: HTMLElement): Placement {
+  const rect = dom.getBoundingClientRect()
+  const columnRight = topLevelAncestor(editor, dom).getBoundingClientRect().left - GAP_DEFAULT
+  const line = firstLineRect(dom)
+
+  return {
+    gap: Math.max(GAP_DEFAULT, rect.left - columnRight),
+    lineTop: Math.max(0, line.top - rect.top),
+    lineHeight: line.height,
+  }
+}
+
+/* --------------------------------------------------------- gutter corridor */
+
+const gutterPluginKey = new PluginKey('blockDragHandleGutter')
+
+/** Vertical slack so the margin between two blocks still counts as the band. */
+const BAND_TOLERANCE = 4
+
+/** Document position of the block the handle currently points at. */
+const targets = new WeakMap<Editor, number>()
+
+/**
+ * Keeps the handle attached to the block it already points at while the
+ * pointer travels left through that block's gutter.
+ *
+ * Needed because `posAtCoords` on a point inside a container's own padding
+ * resolves to the container, not to the child block rendered there. Walking
+ * the pointer from a paragraph inside a callout out to its handle crosses that
+ * padding, so the target flipped to the callout and the line's handle was
+ * replaced mid-travel. Returning `true` here consumes the event before the
+ * drag handle plugin's `mousemove` runs, so nothing is recomputed. Vertical
+ * moves that leave the block's band fall through and re-target normally.
+ */
+function createGutterPlugin(editor: Editor) {
+  return new Plugin({
+    key: gutterPluginKey,
+    props: {
+      handleDOMEvents: {
+        mousemove: (view, event) => {
+          const pos = targets.get(editor)
+          if (pos === undefined || pos < 0) return false
+
+          const dom = view.nodeDOM(pos)
+          if (!(dom instanceof HTMLElement)) return false
+
+          const rect = dom.getBoundingClientRect()
+          return (
+            event.clientX < rect.left &&
+            event.clientY >= rect.top - BAND_TOLERANCE &&
+            event.clientY <= rect.bottom + BAND_TOLERANCE
+          )
+        },
+      },
+    },
+  })
 }
 
 /* ---------------------------------------------------------------- colors */
@@ -119,6 +283,16 @@ export function BlockDragHandle({ editor }: BlockDragHandleProps) {
     }
   }, [menuOpen, closeMenus])
 
+  // Runs before the drag handle's own mousemove handler: `handleDOMEvents`
+  // resolves in plugin order and this one is prepended.
+  useEffect(() => {
+    if (!editor) return
+    editor.registerPlugin(createGutterPlugin(editor), (plugin, plugins) => [plugin, ...plugins])
+    return () => {
+      if (!editor.isDestroyed) editor.unregisterPlugin(gutterPluginKey)
+    }
+  }, [editor])
+
   const computePositionConfig = useMemo<Partial<ComputePositionConfig>>(
     () => ({
       placement: 'left-start',
@@ -128,9 +302,15 @@ export function BlockDragHandle({ editor }: BlockDragHandleProps) {
           const p = editor ? getPlacement(editor) : null
           const measured = p?.lineHeight || rects.reference.height
           const firstLine = Math.min(measured, rects.reference.height)
+          // Clamp so a stale measurement can never push the handle past the
+          // bottom of the block it points at.
+          const lineTop = Math.min(
+            p?.lineTop ?? 0,
+            Math.max(0, rects.reference.height - firstLine)
+          )
           return {
             mainAxis: p?.gap ?? GAP_DEFAULT,
-            crossAxis: Math.max(0, (firstLine - rects.floating.height) / 2),
+            crossAxis: lineTop + Math.max(0, (firstLine - rects.floating.height) / 2),
           }
         }),
       ],
@@ -264,22 +444,22 @@ export function BlockDragHandle({ editor }: BlockDragHandleProps) {
   return (
     <DragHandle
       editor={editor}
-      nested
+      nested={NESTED_OPTIONS}
       computePositionConfig={computePositionConfig as ComputePositionConfig}
       onNodeChange={({ node: n, pos: nodePos }) => {
         setNode(n)
         setPos(nodePos)
+        targets.set(editor, n ? nodePos : -1)
 
         const p = getPlacement(editor)
-        p.gap = n && MARKER_NODES.has(n.type.name) ? GAP_LIST : GAP_DEFAULT
+        p.gap = GAP_DEFAULT
+        p.lineTop = 0
         p.lineHeight = 0
 
         if (!n || nodePos < 0) return
         const dom = editor.view.nodeDOM(nodePos)
         if (!(dom instanceof HTMLElement)) return
-        const cs = window.getComputedStyle(dom)
-        const parsed = Number.parseFloat(cs.lineHeight)
-        p.lineHeight = Number.isFinite(parsed) ? parsed : Number.parseFloat(cs.fontSize) * 1.2
+        Object.assign(p, measurePlacement(editor, dom))
       }}
       className="flex items-center gap-0.5"
     >

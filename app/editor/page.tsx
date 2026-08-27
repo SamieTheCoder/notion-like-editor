@@ -1,4 +1,4 @@
-import { TiptapEditor } from '@/components/editor/TiptapEditor'
+import { DemoEditor } from '@/components/editor/DemoEditor'
 import Link from 'next/link'
 
 export const metadata = {
@@ -31,7 +31,7 @@ export default function EditorPage() {
           </Link>
         </header>
 
-        <TiptapEditor />
+        <DemoEditor />
       </div>
     </main>
   )
