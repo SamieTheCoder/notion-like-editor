@@ -1,0 +1,566 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.3
+-- https://www.phpmyadmin.net/
+--
+-- Host: 164.52.209.182:3306
+-- Generation Time: Aug 31, 2026 at 09:39 AM
+-- Server version: 10.11.14-MariaDB-log
+-- PHP Version: 7.2.24
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Database: `feedback`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `API_KEY`
+--
+
+CREATE TABLE `API_KEY` (
+  `ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `API_KEY` varchar(255) NOT NULL,
+  `SECRET` varchar(255) NOT NULL,
+  `STATUS` varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `EXPIRES_AT` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ATTACHMENT`
+--
+
+CREATE TABLE `ATTACHMENT` (
+  `ID` bigint(20) NOT NULL,
+  `CONTENT_TYPE` varchar(255) DEFAULT NULL,
+  `CREATED_AT` datetime(6) NOT NULL,
+  `FILE_NAME` varchar(255) NOT NULL,
+  `FILE_SIZE` bigint(20) DEFAULT NULL,
+  `ORIGINAL_NAME` varchar(255) DEFAULT NULL,
+  `S3_KEY` varchar(255) DEFAULT NULL,
+  `STATUS` enum('ACTIVE','DELETED','INACTIVE') NOT NULL,
+  `TYPE` varchar(50) NOT NULL,
+  `UPDATED_AT` datetime(6) NOT NULL,
+  `URL` varchar(255) NOT NULL,
+  `VENDOR_ID` bigint(20) DEFAULT NULL,
+  `USER_ID` bigint(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `EVENT`
+--
+
+CREATE TABLE `EVENT` (
+  `ID` bigint(20) NOT NULL,
+  `CODE` varchar(255) NOT NULL,
+  `CREATED_AT` datetime(6) NOT NULL,
+  `DESCRIPTION` varchar(255) DEFAULT NULL,
+  `NAME` varchar(255) NOT NULL,
+  `STATUS` enum('ACTIVE','DELETED','INACTIVE','INVITED') NOT NULL,
+  `UPDATED_AT` datetime(6) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `FEEDBACK_ANSWER`
+--
+
+CREATE TABLE `FEEDBACK_ANSWER` (
+  `ID` bigint(20) NOT NULL,
+  `RESPONSE_ID` bigint(20) NOT NULL,
+  `QUESTION_ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `RATING_VALUE` float DEFAULT NULL,
+  `TEXT_VALUE` text DEFAULT NULL,
+  `SELECTED_OPTIONS` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`SELECTED_OPTIONS`)),
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `GENERATED_QUESTION_ID` bigint(20) DEFAULT NULL,
+  `RUNTIME_ENTITY` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`RUNTIME_ENTITY`)),
+  `TEMPLATE_ID` bigint(20) DEFAULT NULL,
+  `UPDATED_AT` datetime NOT NULL,
+  `ACTIVE` char(1) NOT NULL DEFAULT 'Y',
+  `DELETED` char(1) NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `FEEDBACK_FORM`
+--
+
+CREATE TABLE `FEEDBACK_FORM` (
+  `ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `CODE` varchar(255) NOT NULL,
+  `TITLE` varchar(255) NOT NULL,
+  `DESCRIPTION` varchar(255) DEFAULT NULL,
+  `FEEDBACK_TYPE` varchar(20) NOT NULL DEFAULT 'GENERAL',
+  `DYNAMIC_CONTEXT` varchar(255) DEFAULT NULL,
+  `SHARE_TOKEN` varchar(255) DEFAULT NULL,
+  `STATUS` varchar(20) NOT NULL DEFAULT 'DRAFT',
+  `VERSION` int(11) NOT NULL DEFAULT 1,
+  `CREATED_BY` bigint(20) DEFAULT NULL,
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UPDATED_AT` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `ROLE_ID` bigint(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `FEEDBACK_FORM_INSTANCE`
+--
+
+CREATE TABLE `FEEDBACK_FORM_INSTANCE` (
+  `ID` bigint(20) NOT NULL,
+  `EXPIRES_AT` datetime(6) DEFAULT NULL,
+  `FORM_ID` bigint(20) NOT NULL,
+  `GENERATED_AT` datetime(6) NOT NULL,
+  `RESPONDENT_ID` varchar(255) DEFAULT NULL,
+  `RUNTIME_CONTEXT_SNAPSHOT` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`RUNTIME_CONTEXT_SNAPSHOT`)),
+  `STATUS` enum('EXPIRED','GENERATED','SUBMITTED') NOT NULL,
+  `SUBMITTED_AT` datetime(6) DEFAULT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `FEEDBACK_QUESTION`
+--
+
+CREATE TABLE `FEEDBACK_QUESTION` (
+  `ID` bigint(20) NOT NULL,
+  `FORM_ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `QUESTION_TYPE` varchar(30) NOT NULL,
+  `QUESTION_TEXT` text NOT NULL,
+  `OPTIONS` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`OPTIONS`)),
+  `IS_REQUIRED` tinyint(1) NOT NULL DEFAULT 0,
+  `SORT_ORDER` int(11) NOT NULL DEFAULT 0,
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UPDATED_AT` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `DYNAMIC_CONFIG` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`DYNAMIC_CONFIG`)),
+  `HELP_TEXT` text DEFAULT NULL,
+  `SCOPE` enum('DYNAMIC','STATIC') NOT NULL,
+  `STATUS` enum('ACTIVE','INACTIVE') NOT NULL,
+  `VALIDATION_RULES` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`VALIDATION_RULES`)),
+  `PARAMETER_ID` bigint(20) DEFAULT NULL,
+  `HAS_DESCRIPTION` tinyint(1) NOT NULL DEFAULT 0,
+  `ACTIVE` char(1) NOT NULL DEFAULT 'Y',
+  `DELETED` char(1) NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `FEEDBACK_RESPONSE`
+--
+
+CREATE TABLE `FEEDBACK_RESPONSE` (
+  `ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `FORM_ID` bigint(20) NOT NULL,
+  `EXTERNAL_USER_ID` varchar(255) DEFAULT NULL,
+  `EXTERNAL_USER_NAME` varchar(255) DEFAULT NULL,
+  `EXTERNAL_USER_ROLE` varchar(255) DEFAULT NULL,
+  `SUBMITTED_BY_ROLE` varchar(255) DEFAULT NULL,
+  `FEEDBACK_FOR_ROLE` varchar(255) DEFAULT NULL,
+  `CONTEXT_DATA` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`CONTEXT_DATA`)),
+  `STATUS` varchar(20) NOT NULL DEFAULT 'SENT',
+  `SUBMITTED_AT` timestamp NULL DEFAULT NULL,
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `INSTANCE_ID` bigint(20) DEFAULT NULL,
+  `REQUEST_PAYLOAD` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`REQUEST_PAYLOAD`)),
+  `UPDATED_AT` datetime(6) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `GENERATED_QUESTION`
+--
+
+CREATE TABLE `GENERATED_QUESTION` (
+  `ID` bigint(20) NOT NULL,
+  `BINDINGS_RESOLVED` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`BINDINGS_RESOLVED`)),
+  `CREATED_AT` datetime(6) NOT NULL,
+  `DISPLAY_ORDER` int(11) NOT NULL,
+  `HELP_TEXT_RESOLVED` text DEFAULT NULL,
+  `INSTANCE_ID` bigint(20) NOT NULL,
+  `IS_REQUIRED` bit(1) NOT NULL,
+  `OPTIONS_RESOLVED` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`OPTIONS_RESOLVED`)),
+  `PROMPT_RESOLVED` text NOT NULL,
+  `QUESTION_TYPE` enum('DESCRIPTION','MULTIPLE_CHOICE','RADIO','RATING') NOT NULL,
+  `RUNTIME_ENTITY` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`RUNTIME_ENTITY`)),
+  `SCOPE` enum('DYNAMIC','STATIC') NOT NULL,
+  `TEMPLATE_ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `PERFORMANCE_PARAMETER`
+--
+
+CREATE TABLE `PERFORMANCE_PARAMETER` (
+  `ID` bigint(20) NOT NULL,
+  `CREATED_AT` datetime(6) NOT NULL,
+  `NAME` varchar(150) NOT NULL,
+  `STATUS` enum('ACTIVE','DELETED','INACTIVE','INVITED') NOT NULL,
+  `UPDATED_AT` datetime(6) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `ACTIVE` char(1) NOT NULL DEFAULT 'Y',
+  `DELETED` char(1) NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `PERFORMANCE_ROLE`
+--
+
+CREATE TABLE `PERFORMANCE_ROLE` (
+  `ID` bigint(20) NOT NULL,
+  `CREATED_AT` datetime(6) NOT NULL,
+  `NAME` varchar(150) NOT NULL,
+  `STATUS` enum('ACTIVE','DELETED','INACTIVE','INVITED') NOT NULL,
+  `UPDATED_AT` datetime(6) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `ACTIVE` char(1) NOT NULL DEFAULT 'Y',
+  `DELETED` char(1) NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ROLE_PARAMETER_MAP`
+--
+
+CREATE TABLE `ROLE_PARAMETER_MAP` (
+  `ID` bigint(20) NOT NULL,
+  `CREATED_AT` datetime(6) NOT NULL,
+  `PARAMETER_ID` bigint(20) NOT NULL,
+  `ROLE_ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) NOT NULL,
+  `UPDATED_AT` datetime(6) NOT NULL,
+  `ACTIVE` char(1) NOT NULL DEFAULT 'Y',
+  `DELETED` char(1) NOT NULL DEFAULT 'N'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `USER`
+--
+
+CREATE TABLE `USER` (
+  `ID` bigint(20) NOT NULL,
+  `VENDOR_ID` bigint(20) DEFAULT NULL,
+  `EMAIL` varchar(255) NOT NULL,
+  `PASSWORD_HASH` varchar(255) DEFAULT NULL,
+  `FIRST_NAME` varchar(255) NOT NULL,
+  `LAST_NAME` varchar(255) DEFAULT NULL,
+  `ROLE` varchar(20) NOT NULL DEFAULT 'ADMIN',
+  `STATUS` varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UPDATED_AT` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `INVITE_TOKEN` varchar(255) DEFAULT NULL,
+  `INVITE_TOKEN_EXPIRES_AT` datetime(6) DEFAULT NULL,
+  `PERMISSIONS` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `VENDOR`
+--
+
+CREATE TABLE `VENDOR` (
+  `ID` bigint(20) NOT NULL,
+  `NAME` varchar(255) NOT NULL,
+  `CODE` varchar(255) NOT NULL,
+  `DOMAIN` varchar(255) DEFAULT NULL,
+  `LOGO_URL` varchar(255) DEFAULT NULL,
+  `STATUS` varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UPDATED_AT` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `FAVICON_URL` varchar(255) DEFAULT NULL,
+  `PRIMARY_COLOR` varchar(255) DEFAULT NULL,
+  `SECONDARY_COLOR` varchar(255) DEFAULT NULL,
+  `TERTIARY_COLOR` varchar(255) DEFAULT NULL,
+  `WEBHOOK_EVENTS` varchar(255) DEFAULT NULL,
+  `WEBHOOK_URL` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `API_KEY`
+--
+ALTER TABLE `API_KEY`
+  ADD PRIMARY KEY (`ID`),
+  ADD UNIQUE KEY `API_KEY` (`API_KEY`),
+  ADD KEY `IDX_APIKEY_VENDOR` (`VENDOR_ID`),
+  ADD KEY `IDX_APIKEY_KEY` (`API_KEY`);
+
+--
+-- Indexes for table `ATTACHMENT`
+--
+ALTER TABLE `ATTACHMENT`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `EVENT`
+--
+ALTER TABLE `EVENT`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `FEEDBACK_ANSWER`
+--
+ALTER TABLE `FEEDBACK_ANSWER`
+  ADD PRIMARY KEY (`ID`),
+  ADD KEY `IDX_ANSWER_RESPONSE` (`RESPONSE_ID`),
+  ADD KEY `IDX_ANSWER_QUESTION` (`QUESTION_ID`),
+  ADD KEY `IDX_ANSWER_VENDOR` (`VENDOR_ID`),
+  ADD KEY `idx_feedback_answer_response_id` (`RESPONSE_ID`),
+  ADD KEY `idx_feedback_answer_question_id` (`QUESTION_ID`);
+
+--
+-- Indexes for table `FEEDBACK_FORM`
+--
+ALTER TABLE `FEEDBACK_FORM`
+  ADD PRIMARY KEY (`ID`),
+  ADD UNIQUE KEY `UKoa8c69dr74r92ose53vm98inp` (`SHARE_TOKEN`),
+  ADD KEY `IDX_FORM_VENDOR` (`VENDOR_ID`),
+  ADD KEY `IDX_FORM_STATUS` (`VENDOR_ID`,`STATUS`),
+  ADD KEY `IDX_FORM_TRIGGER` (`VENDOR_ID`),
+  ADD KEY `FK_FORM_CREATOR` (`CREATED_BY`);
+
+--
+-- Indexes for table `FEEDBACK_FORM_INSTANCE`
+--
+ALTER TABLE `FEEDBACK_FORM_INSTANCE`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `FEEDBACK_QUESTION`
+--
+ALTER TABLE `FEEDBACK_QUESTION`
+  ADD PRIMARY KEY (`ID`),
+  ADD KEY `IDX_QUESTION_FORM` (`FORM_ID`),
+  ADD KEY `IDX_QUESTION_VENDOR` (`VENDOR_ID`);
+
+--
+-- Indexes for table `FEEDBACK_RESPONSE`
+--
+ALTER TABLE `FEEDBACK_RESPONSE`
+  ADD PRIMARY KEY (`ID`),
+  ADD KEY `IDX_RESPONSE_VENDOR` (`VENDOR_ID`),
+  ADD KEY `IDX_RESPONSE_FORM` (`FORM_ID`),
+  ADD KEY `IDX_RESPONSE_STATUS` (`STATUS`),
+  ADD KEY `IDX_RESPONSE_USER` (`EXTERNAL_USER_ID`),
+  ADD KEY `idx_feedback_response_vendor_form_status_submitted` (`VENDOR_ID`,`FORM_ID`,`STATUS`,`SUBMITTED_AT`);
+
+--
+-- Indexes for table `GENERATED_QUESTION`
+--
+ALTER TABLE `GENERATED_QUESTION`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `PERFORMANCE_PARAMETER`
+--
+ALTER TABLE `PERFORMANCE_PARAMETER`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `PERFORMANCE_ROLE`
+--
+ALTER TABLE `PERFORMANCE_ROLE`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `ROLE_PARAMETER_MAP`
+--
+ALTER TABLE `ROLE_PARAMETER_MAP`
+  ADD PRIMARY KEY (`ID`);
+
+--
+-- Indexes for table `USER`
+--
+ALTER TABLE `USER`
+  ADD PRIMARY KEY (`ID`),
+  ADD UNIQUE KEY `EMAIL` (`EMAIL`),
+  ADD UNIQUE KEY `UKamtxp2ybfrpygm5k4svh1uv8h` (`INVITE_TOKEN`),
+  ADD KEY `IDX_USER_EMAIL` (`EMAIL`),
+  ADD KEY `IDX_USER_VENDOR` (`VENDOR_ID`),
+  ADD KEY `IDX_USER_ROLE` (`ROLE`);
+
+--
+-- Indexes for table `VENDOR`
+--
+ALTER TABLE `VENDOR`
+  ADD PRIMARY KEY (`ID`),
+  ADD UNIQUE KEY `CODE` (`CODE`),
+  ADD KEY `IDX_VENDOR_CODE` (`CODE`),
+  ADD KEY `IDX_VENDOR_STATUS` (`STATUS`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `API_KEY`
+--
+ALTER TABLE `API_KEY`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `ATTACHMENT`
+--
+ALTER TABLE `ATTACHMENT`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `EVENT`
+--
+ALTER TABLE `EVENT`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `FEEDBACK_ANSWER`
+--
+ALTER TABLE `FEEDBACK_ANSWER`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `FEEDBACK_FORM`
+--
+ALTER TABLE `FEEDBACK_FORM`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `FEEDBACK_FORM_INSTANCE`
+--
+ALTER TABLE `FEEDBACK_FORM_INSTANCE`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `FEEDBACK_QUESTION`
+--
+ALTER TABLE `FEEDBACK_QUESTION`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `FEEDBACK_RESPONSE`
+--
+ALTER TABLE `FEEDBACK_RESPONSE`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `GENERATED_QUESTION`
+--
+ALTER TABLE `GENERATED_QUESTION`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `PERFORMANCE_PARAMETER`
+--
+ALTER TABLE `PERFORMANCE_PARAMETER`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `PERFORMANCE_ROLE`
+--
+ALTER TABLE `PERFORMANCE_ROLE`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `ROLE_PARAMETER_MAP`
+--
+ALTER TABLE `ROLE_PARAMETER_MAP`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `USER`
+--
+ALTER TABLE `USER`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `VENDOR`
+--
+ALTER TABLE `VENDOR`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `API_KEY`
+--
+ALTER TABLE `API_KEY`
+  ADD CONSTRAINT `FK_APIKEY_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+
+--
+-- Constraints for table `FEEDBACK_ANSWER`
+--
+ALTER TABLE `FEEDBACK_ANSWER`
+  ADD CONSTRAINT `FK_ANSWER_QUESTION` FOREIGN KEY (`QUESTION_ID`) REFERENCES `FEEDBACK_QUESTION` (`ID`),
+  ADD CONSTRAINT `FK_ANSWER_RESPONSE` FOREIGN KEY (`RESPONSE_ID`) REFERENCES `FEEDBACK_RESPONSE` (`ID`) ON DELETE CASCADE,
+  ADD CONSTRAINT `FK_ANSWER_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+
+--
+-- Constraints for table `FEEDBACK_FORM`
+--
+ALTER TABLE `FEEDBACK_FORM`
+  ADD CONSTRAINT `FK_FORM_CREATOR` FOREIGN KEY (`CREATED_BY`) REFERENCES `USER` (`ID`),
+  ADD CONSTRAINT `FK_FORM_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+
+--
+-- Constraints for table `FEEDBACK_QUESTION`
+--
+ALTER TABLE `FEEDBACK_QUESTION`
+  ADD CONSTRAINT `FK_QUESTION_FORM` FOREIGN KEY (`FORM_ID`) REFERENCES `FEEDBACK_FORM` (`ID`) ON DELETE CASCADE,
+  ADD CONSTRAINT `FK_QUESTION_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+
+--
+-- Constraints for table `FEEDBACK_RESPONSE`
+--
+ALTER TABLE `FEEDBACK_RESPONSE`
+  ADD CONSTRAINT `FK_RESPONSE_FORM` FOREIGN KEY (`FORM_ID`) REFERENCES `FEEDBACK_FORM` (`ID`),
+  ADD CONSTRAINT `FK_RESPONSE_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+
+--
+-- Constraints for table `USER`
+--
+ALTER TABLE `USER`
+  ADD CONSTRAINT `FK_USER_VENDOR` FOREIGN KEY (`VENDOR_ID`) REFERENCES `VENDOR` (`ID`);
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

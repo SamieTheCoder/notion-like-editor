@@ -15,7 +15,7 @@ export function CreateDocButton({ className = '' }: { className?: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: 'Untitled',
+          title: '',
           content: { type: 'doc', content: [{ type: 'paragraph' }] },
         }),
       })

@@ -1,12 +1,61 @@
 import { DemoEditor } from '@/components/editor/DemoEditor'
+import { VendorBodyEditor } from '@/components/editor/VendorBodyEditor'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
+import { initAuthDB, getVendorById } from '@/lib/auth-db'
+import { initTemplatesTable, getTemplateById } from '@/lib/email-templates'
 
 export const metadata = {
-  title: 'Editor Demo',
+  title: 'Editor',
   description: 'A block-based editor that exports Tailwind-styled HTML.',
 }
 
-export default function EditorPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function EditorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vendorId?: string; templateId?: string }>
+}) {
+  const { vendorId, templateId } = await searchParams
+
+  // Vendor mode: author a template body and save it (create or edit).
+  if (vendorId) {
+    const session = await getSession()
+    if (!session) redirect('/')
+
+    const id = Number(vendorId)
+    await initAuthDB()
+    await initTemplatesTable()
+    const vendor = await getVendorById(id)
+    if (!vendor) redirect('/dashboard')
+
+    const tplId = templateId ? Number(templateId) : null
+    const template =
+      tplId != null && Number.isFinite(tplId)
+        ? await getTemplateById(tplId)
+        : null
+
+    return (
+      <main className="min-h-screen bg-gray-50 py-10">
+        <div className="mx-auto max-w-5xl px-4">
+          <VendorBodyEditor
+            vendorId={id}
+            vendorName={vendor.name}
+            templateId={template?.id ?? null}
+            headHtml={vendor.header_html || ''}
+            footerHtml={vendor.footer_html || ''}
+            initialTrigger={template?.trigger || ''}
+            initialBodyJson={template?.body_json || null}
+            initialFinalBody={template?.final_body || ''}
+          />
+        </div>
+      </main>
+    )
+  }
+
+  // Standalone demo mode.
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <div className="mx-auto max-w-5xl px-4">
@@ -24,10 +73,10 @@ export default function EditorPage() {
             </p>
           </div>
           <Link
-            href="/"
+            href="/dashboard"
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
           >
-            All documents
+            Dashboard
           </Link>
         </header>
 

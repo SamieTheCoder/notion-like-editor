@@ -58,6 +58,8 @@ interface TiptapEditorProps {
   templateId?: number | null
   /** Called once when the editor instance is ready. */
   onEditorReady?: (editor: import('@tiptap/core').Editor) => void
+  /** Hide the HTML/JSON/Render output panel and its status-bar buttons. */
+  hideOutputPanel?: boolean
 }
 
 export function TiptapEditor({
@@ -65,6 +67,7 @@ export function TiptapEditor({
   onUpdate,
   templateId = null,
   onEditorReady,
+  hideOutputPanel = false,
 }: TiptapEditorProps = {}) {
   const [panel, setPanel] = useState<Panel>('none')
   const [htmlMode, setHtmlMode] = useState<HtmlMode>('fragment')
@@ -282,6 +285,7 @@ export function TiptapEditor({
       {/* Status bar */}
       <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-500">
         {editor ? <DocStats editor={editor} /> : <span>0 words</span>}
+        {!hideOutputPanel && (
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -314,10 +318,11 @@ export function TiptapEditor({
             </button>
           )}
         </span>
+        )}
       </div>
 
       {/* Output panel */}
-      {panel !== 'none' && (
+      {!hideOutputPanel && panel !== 'none' && (
         <div className="border-t border-gray-200 bg-gray-50 p-4">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
