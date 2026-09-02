@@ -27,7 +27,7 @@ const TABLE = 'notion_sam_email_templates'
 
 export interface EmailTemplate {
   id: number
-  slug: string
+  vendor_name: string
   name: string
   head_html: string
   footer_html: string
@@ -36,6 +36,7 @@ export interface EmailTemplate {
   final_body: string | null
   trigger: string | null
   vendor_id: number | null
+  is_active: string
   config: EmailShellConfig
   created_at: string
   updated_at: string
@@ -46,7 +47,7 @@ export async function initTemplatesTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE} (
       id           SERIAL PRIMARY KEY,
-      slug         TEXT NOT NULL UNIQUE,
+      vendor_name  TEXT NOT NULL UNIQUE,
       name         TEXT NOT NULL,
       head_html    TEXT NOT NULL,
       footer_html  TEXT NOT NULL,
@@ -54,6 +55,22 @@ export async function initTemplatesTable() {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `)
+  // Migration: the "slug" column was renamed to "vendor_name". Rename it in
+  // place on existing databases; the NULL-safe guard keeps this idempotent.
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = '${TABLE}' AND column_name = 'slug'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = '${TABLE}' AND column_name = 'vendor_name'
+      ) THEN
+        ALTER TABLE ${TABLE} RENAME COLUMN slug TO vendor_name;
+      END IF;
+    END $$;
   `)
   // Additive migrations: vendor link, body content, editor JSON, trigger name.
   await pool.query(
@@ -71,14 +88,30 @@ export async function initTemplatesTable() {
   await pool.query(
     `ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS final_body TEXT`
   )
+  // Active flag stored as 'Y' / 'N'. Default 'Y' so existing templates stay on.
+  await pool.query(
+    `ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS is_active CHAR(1) NOT NULL DEFAULT 'Y'`
+  )
   await pool.query(
     `CREATE INDEX IF NOT EXISTS idx_email_template_vendor ON ${TABLE}(vendor_id)`
   )
 }
 
+/** Flip a template's active flag. Returns the new value or null if not found. */
+export async function setTemplateActive(
+  id: number,
+  active: boolean
+): Promise<string | null> {
+  const { rows } = await pool.query<{ is_active: string }>(
+    `UPDATE ${TABLE} SET is_active = $2, updated_at = now() WHERE id = $1 RETURNING is_active`,
+    [id, active ? 'Y' : 'N']
+  )
+  return rows[0]?.is_active ?? null
+}
+
 export async function listTemplates(): Promise<Omit<EmailTemplate, 'head_html' | 'footer_html'>[]> {
   const { rows } = await pool.query(`
-    SELECT id, slug, name, config, created_at, updated_at
+    SELECT id, vendor_name, name, config, created_at, updated_at
     FROM ${TABLE}
     ORDER BY id ASC
   `)
@@ -95,7 +128,7 @@ export async function getTemplateById(id: number): Promise<EmailTemplate | null>
 
 export async function getTemplateBySlug(slug: string): Promise<EmailTemplate | null> {
   const { rows } = await pool.query<EmailTemplate>(
-    `SELECT * FROM ${TABLE} WHERE slug = $1`,
+    `SELECT * FROM ${TABLE} WHERE vendor_name = $1`,
     [slug]
   )
   return rows[0] || null
@@ -115,9 +148,9 @@ export async function upsertTemplate(input: {
   vendorId?: number | null
 }): Promise<EmailTemplate> {
   const { rows } = await pool.query<EmailTemplate>(
-    `INSERT INTO ${TABLE} (slug, name, head_html, footer_html, config, body_html, vendor_id)
+    `INSERT INTO ${TABLE} (vendor_name, name, head_html, footer_html, config, body_html, vendor_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (slug) DO UPDATE SET
+     ON CONFLICT (vendor_name) DO UPDATE SET
        name        = EXCLUDED.name,
        head_html   = EXCLUDED.head_html,
        footer_html = EXCLUDED.footer_html,
@@ -150,6 +183,26 @@ export async function getTemplateByVendor(
   return rows[0] || null
 }
 
+/**
+ * Get a template by vendor id + trigger name. This is the lookup the send path
+ * uses: given which vendor is sending and which event fired, return the row so
+ * the caller can read its body. Matches the newest row when a vendor has more
+ * than one template for the same trigger.
+ */
+export async function getTemplateByVendorAndTrigger(
+  vendorId: number,
+  trigger: string
+): Promise<EmailTemplate | null> {
+  const { rows } = await pool.query<EmailTemplate>(
+    `SELECT * FROM ${TABLE}
+     WHERE vendor_id = $1 AND trigger = $2
+     ORDER BY id DESC
+     LIMIT 1`,
+    [vendorId, trigger]
+  )
+  return rows[0] || null
+}
+
 /** List all templates for a vendor. */
 export async function listTemplatesByVendor(
   vendorId: number
@@ -159,6 +212,19 @@ export async function listTemplatesByVendor(
     [vendorId]
   )
   return rows
+}
+
+/** Count templates per vendor id. Returns a map { vendorId: count }. */
+export async function countTemplatesByVendor(): Promise<Record<number, number>> {
+  const { rows } = await pool.query<{ vendor_id: string; n: string }>(
+    `SELECT vendor_id, count(*)::int AS n
+     FROM ${TABLE}
+     WHERE vendor_id IS NOT NULL
+     GROUP BY vendor_id`
+  )
+  const map: Record<number, number> = {}
+  for (const r of rows) map[Number(r.vendor_id)] = Number(r.n)
+  return map
 }
 
 /** Create a new template (body + trigger) for a vendor. */
@@ -179,7 +245,7 @@ export async function createVendorTemplate(input: {
 
   const { rows } = await pool.query<EmailTemplate>(
     `INSERT INTO ${TABLE}
-       (slug, name, head_html, footer_html, body_html, body_json, final_body, trigger, vendor_id, config)
+       (vendor_name, name, head_html, footer_html, body_html, body_json, final_body, trigger, vendor_id, config)
      VALUES ($1, $2, '', '', $3, $4, $5, $6, $7, '{}'::jsonb)
      RETURNING *`,
     [
@@ -265,7 +331,7 @@ export async function saveVendorBody(input: {
     return rows[0]
   }
   const { rows } = await pool.query<EmailTemplate>(
-    `INSERT INTO ${TABLE} (slug, name, head_html, footer_html, body_html, body_json, trigger, vendor_id, config)
+    `INSERT INTO ${TABLE} (vendor_name, name, head_html, footer_html, body_html, body_json, trigger, vendor_id, config)
      VALUES ($1, $2, '', '', $3, $4, $5, $6, '{}'::jsonb)
      RETURNING *`,
     [

@@ -11,6 +11,7 @@ import { VariablePanel } from './VariablePanel'
 interface Props {
   vendorId: number
   vendorName: string
+  canManageVariables?: boolean
   templateId: number | null
   headHtml: string
   footerHtml: string
@@ -22,6 +23,7 @@ interface Props {
 export function VendorBodyEditor({
   vendorId,
   vendorName,
+  canManageVariables = false,
   templateId,
   headHtml,
   footerHtml,
@@ -32,12 +34,25 @@ export function VendorBodyEditor({
   const router = useRouter()
   const [trigger, setTrigger] = useState(initialTrigger)
   const [saving, setSaving] = useState(false)
+  // The current template id. Starts from the prop, but once a brand-new
+  // template is saved we capture the server-assigned id here so every
+  // subsequent save (manual or autosave) UPDATES that row instead of creating
+  // a duplicate.
+  const [currentTemplateId, setCurrentTemplateId] = useState<number | null>(
+    templateId
+  )
+  const currentTemplateIdRef = useRef<number | null>(templateId)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [finalBody, setFinalBody] = useState(initialFinalBody)
   const [copied, setCopied] = useState(false)
   const [variablePanelOpen, setVariablePanelOpen] = useState(false)
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null)
   const editorRef = useRef<Editor | null>(null)
+  // Autosave bookkeeping.
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savingRef = useRef(false)
+  const triggerRef = useRef(initialTrigger)
 
   // The /variable slash command dispatches this event to open the panel.
   useEffect(() => {
@@ -55,38 +70,108 @@ export function VendorBodyEditor({
     }
   }, [])
 
-  async function save() {
-    if (!trigger.trim()) {
-      toast.error('Enter a template name (trigger) first.')
-      return
-    }
-    setSaving(true)
-    try {
-      const { html, json } = getBody()
-      const res = await fetch('/api/dashboard/body', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorId,
-          templateId,
-          trigger: trigger.trim(),
-          bodyHtml: html,
-          bodyJson: json,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error || 'Save failed.')
-      } else {
-        if (typeof data.finalBody === 'string') setFinalBody(data.finalBody)
-        toast.success(`Saved template "${data.trigger}".`)
+  // Keep refs in sync for use inside debounced callbacks.
+  useEffect(() => {
+    triggerRef.current = trigger
+  }, [trigger])
+  useEffect(() => {
+    currentTemplateIdRef.current = currentTemplateId
+  }, [currentTemplateId])
+
+  /**
+   * Persist the body. `silent` autosaves skip the success toast and the
+   * name-required error toast. Returns true on success.
+   *
+   * The key duplicate-fix: we always send the CURRENT template id (which may
+   * have just been assigned by a prior create), and we capture the id from the
+   * response so the next save updates the same row.
+   */
+  const persist = useCallback(
+    async (opts: { silent?: boolean } = {}): Promise<boolean> => {
+      const { silent = false } = opts
+      const triggerName = triggerRef.current.trim()
+      if (!triggerName) {
+        if (!silent) toast.error('Enter a template name (trigger) first.')
+        return false
       }
-    } catch {
-      toast.error('Network error.')
-    } finally {
-      setSaving(false)
-    }
+      // Guard against overlapping saves (e.g. autosave firing during a manual save).
+      if (savingRef.current) return false
+      savingRef.current = true
+      setSaving(true)
+      try {
+        const { html, json } = getBody()
+        const res = await fetch('/api/dashboard/body', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendorId,
+            templateId: currentTemplateIdRef.current,
+            trigger: triggerName,
+            bodyHtml: html,
+            bodyJson: json,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          if (!silent) toast.error(data.error || 'Save failed.')
+          return false
+        }
+        // Capture the (possibly newly created) id so subsequent saves update it.
+        if (typeof data.id === 'number') {
+          currentTemplateIdRef.current = data.id
+          setCurrentTemplateId(data.id)
+        }
+        if (typeof data.finalBody === 'string') setFinalBody(data.finalBody)
+        setLastSavedAt(Date.now())
+        if (!silent) toast.success(`Saved template "${data.trigger}".`)
+        return true
+      } catch {
+        if (!silent) toast.error('Network error.')
+        return false
+      } finally {
+        savingRef.current = false
+        setSaving(false)
+      }
+    },
+    [getBody, vendorId]
+  )
+
+  async function save() {
+    await persist()
   }
+
+  // Debounced autosave: schedule a silent save ~1.5s after the last change.
+  // Only autosaves once a trigger name exists (the server requires it).
+  const AUTOSAVE_DELAY = 1500
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = setTimeout(() => {
+      if (!triggerRef.current.trim()) return
+      void persist({ silent: true })
+    }, AUTOSAVE_DELAY)
+  }, [persist])
+
+  // Autosave when the trigger name changes too (after content already exists).
+  useEffect(() => {
+    if (!trigger.trim()) return
+    scheduleAutosave()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger])
+
+  // Flush a pending autosave on unmount / tab close so nothing is lost.
+  useEffect(() => {
+    const flush = () => {
+      if (autosaveTimer.current) {
+        clearTimeout(autosaveTimer.current)
+        autosaveTimer.current = null
+      }
+    }
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      flush()
+      window.removeEventListener('beforeunload', flush)
+    }
+  }, [])
 
   async function copyFinalBody() {
     if (!finalBody) {
@@ -110,9 +195,30 @@ export function VendorBodyEditor({
     toast.success('Final body copied.')
   }
 
-  function showPreview() {
-    const { html } = getBody()
-    setPreviewHtml(`${headHtml}\n${html}\n${footerHtml}`)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  async function showPreview() {
+    const { json } = getBody()
+    setPreviewLoading(true)
+    try {
+      // Render on the server so callout backgrounds, colors, and rounding are
+      // inlined as real CSS. editor.getHTML() only emits Tailwind classes,
+      // which have no stylesheet inside the preview iframe, so the callout box
+      // would show plain. This matches the stored final body exactly.
+      const res = await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json, mode: 'email' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const inlinedBody =
+        typeof data.html === 'string' ? data.html : ''
+      setPreviewHtml(`${headHtml}\n${inlinedBody}\n${footerHtml}`)
+    } catch {
+      toast.error('Could not render preview.')
+    } finally {
+      setPreviewLoading(false)
+    }
   }
 
   return (
@@ -120,7 +226,7 @@ export function VendorBodyEditor({
       <div className="mb-4 flex items-center gap-3">
         <button
           onClick={() => router.push(`/dashboard/${vendorId}`)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Back to vendor"
         >
           <ArrowLeft size={18} />
@@ -131,9 +237,9 @@ export function VendorBodyEditor({
             value={trigger}
             onChange={(e) => setTrigger(e.target.value)}
             placeholder="Template name / trigger (e.g. LEAD_REGISTERED)"
-            className="w-full border-none bg-transparent text-lg font-semibold text-gray-900 outline-none placeholder:text-gray-300"
+            className="w-full border-none bg-transparent text-lg font-semibold text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {vendorName} · saved as the trigger for this vendor
           </p>
         </div>
@@ -143,8 +249,8 @@ export function VendorBodyEditor({
           aria-pressed={variablePanelOpen}
           className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
             variablePanelOpen
-              ? 'border-blue-600 bg-blue-600 text-white'
-              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-card text-foreground hover:bg-accent'
           }`}
         >
           <Braces size={16} /> Variables
@@ -152,15 +258,29 @@ export function VendorBodyEditor({
 
         <button
           onClick={showPreview}
-          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          disabled={previewLoading}
+          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
         >
-          <Eye size={16} /> Preview email
+          {previewLoading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Eye size={16} />
+          )}{' '}
+          Preview email
         </button>
+
+        <span className="min-w-[92px] text-right text-xs text-muted-foreground">
+          {saving
+            ? 'Saving…'
+            : lastSavedAt
+              ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : 'Autosave on'}
+        </span>
 
         <button
           onClick={save}
           disabled={saving}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-60"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           Save template
@@ -172,6 +292,8 @@ export function VendorBodyEditor({
           <TiptapEditor
             initialContent={initialBodyJson || undefined}
             hideOutputPanel
+            variableVendorId={vendorId}
+            onUpdate={scheduleAutosave}
             onEditorReady={(e) => {
               editorRef.current = e
               setEditorInstance(e)
@@ -191,6 +313,8 @@ export function VendorBodyEditor({
         >
           <VariablePanel
             editor={editorInstance}
+            vendorId={vendorId}
+            canManage={canManageVariables}
             open={variablePanelOpen}
             onClose={() => setVariablePanelOpen(false)}
           />
@@ -208,7 +332,7 @@ export function VendorBodyEditor({
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
               <span className="text-sm font-semibold text-gray-900">
-                Full email preview — header + body + footer
+                Full email preview: header, body, footer
               </span>
               <div className="flex items-center gap-2">
                 <button

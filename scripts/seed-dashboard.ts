@@ -145,7 +145,7 @@ async function main() {
       vendorId: vendor.id,
     })
     console.log(
-      `    template id=${tpl.id} slug=${tpl.slug} ` +
+      `    template id=${tpl.id} vendor_name=${tpl.vendor_name} ` +
         `(head ${seed.headHtml.length}b, footer ${seed.footerHtml.length}b, body ${seed.bodyHtml.length}b)`
     )
   }

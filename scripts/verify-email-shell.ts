@@ -33,12 +33,12 @@ const count = (haystack: string, needle: string) => haystack.split(needle).lengt
 async function main() {
   /* --------------------------------------------------- read shell from DB */
   const shellRes = await pool.query(
-    `SELECT id, slug, name, head_html, footer_html FROM notion_sam_email_templates WHERE id = $1`,
+    `SELECT id, vendor_name, name, head_html, footer_html FROM notion_sam_email_templates WHERE id = $1`,
     [TEMPLATE_ID]
   )
   const shell = shellRes.rows[0]
   if (!shell) throw new Error(`No email template with id ${TEMPLATE_ID}`)
-  console.log(`Shell: id=${shell.id} slug=${shell.slug} "${shell.name}"`)
+  console.log(`Shell: id=${shell.id} vendor_name=${shell.vendor_name} "${shell.name}"`)
   console.log(`  head ${shell.head_html.length} bytes, footer ${shell.footer_html.length} bytes`)
 
   /* ---------------------------------------------------- read body from DB */

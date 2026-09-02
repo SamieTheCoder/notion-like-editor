@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     return Response.json({
       html,
       mode,
-      template: { id: shell.id, slug: shell.slug, name: shell.name },
+      template: { id: shell.id, vendor_name: shell.vendor_name, name: shell.name },
     })
   } catch (error) {
     // Most likely a node/mark in the document that is not in the schema.

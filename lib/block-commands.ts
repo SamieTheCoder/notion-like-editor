@@ -174,15 +174,20 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
   },
   {
     title: 'Variable',
-    description: 'Insert a merge-field token',
+    description: 'Search and insert a merge-field token',
     icon: '{x}',
     searchTerms: ['variable', 'merge', 'field', 'token', 'placeholder', 'dynamic'],
     group: 'Advanced',
     run: (editor, range) => {
-      if (range) editor.chain().focus().deleteRange(range).run()
-      // Dispatch a custom event the sidebar listens for. This opens the panel
-      // so the user picks a variable rather than guessing token names.
-      window.dispatchEvent(new CustomEvent('open-variable-picker'))
+      // Replace the slash query with `#`, the trigger the inline variable
+      // search listens for. The user keeps typing to filter, so the whole flow
+      // stays in the document. The side panel is still available from the
+      // toolbar for anyone who prefers browsing.
+      if (range) {
+        editor.chain().focus().deleteRange(range).insertContent('#').run()
+      } else {
+        editor.chain().focus().insertContent('#').run()
+      }
     },
   },
   {

@@ -131,7 +131,7 @@ async function main() {
     footerHtml,
     config,
   })
-  console.log(`\nSaved template id=${saved.id} slug=${saved.slug}`)
+  console.log(`\nSaved template id=${saved.id} vendor_name=${saved.vendor_name}`)
 
   // Read back and confirm the stored fragments are byte-identical.
   const fetched = await getTemplateById(saved.id)

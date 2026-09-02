@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { canAccessVendor } from '@/lib/authz'
 import { getVendorById, initAuthDB } from '@/lib/auth-db'
 import {
   initTemplatesTable,
@@ -52,6 +53,12 @@ export async function POST(req: Request) {
 
   if (!Number.isFinite(vendorId)) {
     return NextResponse.json({ error: 'Invalid vendor id.' }, { status: 400 })
+  }
+  if (!canAccessVendor(session, vendorId)) {
+    return NextResponse.json(
+      { error: 'You do not have access to this vendor.' },
+      { status: 403 }
+    )
   }
   if (!trigger) {
     return NextResponse.json(
@@ -108,7 +115,7 @@ export async function POST(req: Request) {
 
     const created = await createVendorTemplate({
       vendorId,
-      vendorCode: vendor.code,
+      vendorCode: vendor.vendor_name,
       trigger,
       bodyHtml: inlinedBody,
       bodyJson,

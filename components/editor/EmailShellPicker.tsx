@@ -6,7 +6,7 @@ import type { EmailShellConfig } from '@/lib/email-shell'
 
 export interface ShellOption {
   id: number
-  slug: string
+  vendor_name: string
   name: string
   config: EmailShellConfig
 }

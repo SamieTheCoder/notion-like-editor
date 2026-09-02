@@ -57,3 +57,73 @@ export function composeFinalBody(
 }
 
 export { stripEmailChrome }
+
+/**
+ * Merge-field substitution.
+ *
+ * Templates carry placeholders in the form `#TOKEN#`. Given a map of provided
+ * values, replace every matching placeholder and report which placeholders were
+ * left unfilled.
+ *
+ * The `keys` map is forgiving about the `#` delimiters: a key may be written as
+ * `#USER_NAME#`, `USER_NAME`, or `#USER_NAME` — all normalize to the same token.
+ *
+ * Returns the substituted string and the list of tokens still present (missing
+ * a value), formatted with their `#…#` delimiters so the caller can echo them
+ * back verbatim.
+ */
+export function substituteTokens(
+  html: string,
+  keys: Record<string, string> | null | undefined
+): { output: string; missing: string[] } {
+  const source = html || ''
+
+  // Normalize provided keys: strip surrounding '#', uppercase for a
+  // case-insensitive match against tokens.
+  const provided = new Map<string, string>()
+  if (keys && typeof keys === 'object') {
+    for (const [rawKey, rawVal] of Object.entries(keys)) {
+      const token = rawKey.replace(/^#+|#+$/g, '').trim().toUpperCase()
+      const value = rawVal == null ? '' : String(rawVal)
+      // An empty value counts as "not provided": leave the placeholder in place
+      // and report it as missing, rather than blanking the token out.
+      if (token && value !== '') provided.set(token, value)
+    }
+  }
+
+  // A token is #NAME# where NAME is letters, digits, or underscores.
+  const TOKEN_RE = /#([A-Z0-9_]+)#/gi
+
+  const missingSet = new Set<string>()
+  const output = source.replace(TOKEN_RE, (whole, name: string) => {
+    const key = name.toUpperCase()
+    if (provided.has(key)) return provided.get(key) as string
+    // No value supplied — leave the placeholder in place and record it.
+    missingSet.add(`#${name}#`)
+    return whole
+  })
+
+  return { output, missing: Array.from(missingSet) }
+}
+
+/**
+ * Return the unique `#TOKEN#` placeholders present in a string, in first-seen
+ * order, each with its `#…#` delimiters. Used to build a test form of every
+ * variable a template needs.
+ */
+export function extractTokens(html: string): string[] {
+  const source = html || ''
+  const TOKEN_RE = /#([A-Z0-9_]+)#/gi
+  const seen = new Set<string>()
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = TOKEN_RE.exec(source)) !== null) {
+    const token = `#${m[1]}#`
+    if (!seen.has(token)) {
+      seen.add(token)
+      out.push(token)
+    }
+  }
+  return out
+}
+

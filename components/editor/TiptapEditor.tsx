@@ -1,12 +1,12 @@
 'use client'
 
 import { useEditor, EditorContent } from '@tiptap/react'
-import type { JSONContent } from '@tiptap/core'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { extensions } from '@/lib/tiptap-extensions'
 import { formatHTML, wrapStandaloneHTML } from '@/lib/html-export'
 import { SlashCommand } from './extensions/SlashCommand'
+import { VariableSuggestion } from './extensions/VariableSuggestion'
 import { Toolbar } from './Toolbar'
 import { TableToolbar } from './TableToolbar'
 import { SelectionBubbleMenu } from './SelectionBubbleMenu'
@@ -60,6 +60,11 @@ interface TiptapEditorProps {
   onEditorReady?: (editor: import('@tiptap/core').Editor) => void
   /** Hide the HTML/JSON/Render output panel and its status-bar buttons. */
   hideOutputPanel?: boolean
+  /**
+   * Vendor whose merge-field variables the inline `#` search offers. Null loads
+   * the shared global set only.
+   */
+  variableVendorId?: number | null
 }
 
 export function TiptapEditor({
@@ -68,6 +73,7 @@ export function TiptapEditor({
   templateId = null,
   onEditorReady,
   hideOutputPanel = false,
+  variableVendorId = null,
 }: TiptapEditorProps = {}) {
   const [panel, setPanel] = useState<Panel>('none')
   const [htmlMode, setHtmlMode] = useState<HtmlMode>('fragment')
@@ -91,6 +97,7 @@ export function TiptapEditor({
         includeChildren: true,
       }),
       SlashCommand,
+      VariableSuggestion.configure({ vendorId: variableVendorId }),
     ],
     content: initialContent || INITIAL_CONTENT,
     onUpdate: ({ editor: e }) => {
