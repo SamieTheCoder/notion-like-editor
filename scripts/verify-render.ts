@@ -253,6 +253,14 @@ const emailChecks: [string, string, boolean][] = [
   ['custom bg survives into email', 'background-color: #ff5a1f', true],
   ['custom text colour survives into email', 'color: #00204a', true],
   ['no javascript: url in email', 'javascript:', false],
+  // Content tables become a div-based grid with ARIA roles (no <table> tags).
+  ['email table is div role=table', 'role="table"', true],
+  ['email table row is div role=row', 'role="row"', true],
+  ['email table cell is div role=cell', 'role="cell"', true],
+  ['no <table> element in email body', '<table', false],
+  ['no <td> element in email body', '<td', false],
+  ['no <tr> element in email body', '<tr', false],
+  ['div row uses flex', 'display:flex', true],
 ]
 
 for (const [label, needle, shouldContain] of emailChecks) {

@@ -13,6 +13,7 @@ import {
   Trash2,
   Type,
   TriangleAlert,
+  Braces,
 } from 'lucide-react'
 import {
   BUTTON_ALIGN_CLASS,
@@ -24,6 +25,8 @@ import {
   sanitizeHref,
 } from './ButtonNode'
 import type { ButtonAlign, ButtonSize, ButtonVariant } from './ButtonNode'
+import { loadVariables } from './VariableSuggestion'
+import type { Variable } from '@/lib/variables'
 
 const VARIANTS: ButtonVariant[] = ['primary', 'secondary', 'outline', 'ghost']
 const SIZES: ButtonSize[] = ['small', 'default', 'large']
@@ -127,6 +130,7 @@ export function ButtonNodeView({
           onOpen={openLink}
           onChange={updateAttributes}
           onDelete={deleteNode}
+          editor={editor}
         />
       )}
     </NodeViewWrapper>
@@ -146,6 +150,7 @@ interface ConfigProps {
   onOpen: () => void
   onChange: (attrs: Record<string, unknown>) => void
   onDelete: () => void
+  editor: NodeViewProps['editor']
 }
 
 function ButtonConfigPanel({
@@ -161,6 +166,7 @@ function ButtonConfigPanel({
   onOpen,
   onChange,
   onDelete,
+  editor,
 }: ConfigProps) {
   const [draftLabel, setDraftLabel] = useState(label)
   const [draftHref, setDraftHref] = useState(href)
@@ -196,6 +202,37 @@ function ButtonConfigPanel({
     const next = draftHref.trim()
     if (next !== href) onChange({ href: next })
   }, [draftHref, href, onChange])
+
+  // Merge-field variables for the button link. Read the vendor from the
+  // variableSuggestion extension the editor is configured with.
+  const vendorId =
+    (editor.extensionManager.extensions.find((e) => e.name === 'variableSuggestion')
+      ?.options as { vendorId?: number | null } | undefined)?.vendorId ?? null
+  const [vars, setVars] = useState<Variable[]>([])
+  const [varsOpen, setVarsOpen] = useState(false)
+  useLayoutEffect(() => {
+    let cancelled = false
+    if (varsOpen && vars.length === 0) {
+      void loadVariables(vendorId).then((list) => {
+        if (!cancelled) setVars(list)
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [varsOpen, vars.length, vendorId])
+
+  // Insert a #TOKEN# into the link and persist immediately.
+  const insertVariable = useCallback(
+    (token: string) => {
+      const tag = `#${token.replace(/^#+|#+$/g, '')}#`
+      const next = `${draftHref}${tag}`
+      setDraftHref(next)
+      onChange({ href: next })
+      setVarsOpen(false)
+    },
+    [draftHref, onChange]
+  )
 
   return (
     <span
@@ -257,6 +294,38 @@ function ButtonConfigPanel({
         >
           <ExternalLink size={14} strokeWidth={1.5} />
         </PanelBtn>
+        <span className="relative">
+          <PanelBtn
+            onClick={() => setVarsOpen((v) => !v)}
+            title="Insert a variable into the link"
+            active={varsOpen}
+          >
+            <Braces size={14} strokeWidth={1.5} />
+          </PanelBtn>
+          {varsOpen && (
+            <span className="absolute right-0 z-40 mt-1 flex max-h-56 w-56 flex-col overflow-auto rounded-lg border border-gray-200 bg-white p-1 shadow-xl">
+              {vars.length === 0 ? (
+                <span className="px-2 py-3 text-center text-xs text-gray-400">
+                  No variables
+                </span>
+              ) : (
+                vars.map((v) => (
+                  <button
+                    key={`${v.vendor_id ?? 'g'}-${v.token}`}
+                    type="button"
+                    onClick={() => insertVariable(v.token)}
+                    className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-gray-100"
+                  >
+                    <span className="truncate text-gray-700">{v.label}</span>
+                    <code className="shrink-0 font-mono text-[10px] text-gray-400">
+                      #{v.token}#
+                    </code>
+                  </button>
+                ))
+              )}
+            </span>
+          )}
+        </span>
       </div>
 
       {hrefRejected && (

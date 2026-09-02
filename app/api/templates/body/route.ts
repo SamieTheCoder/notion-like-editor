@@ -155,11 +155,26 @@ export async function POST(req: Request) {
     }
 
     // 4. Substitute the provided merge-field values into the final body and
-    //    report any tokens left unfilled.
+    //    collect any tokens left unfilled.
     const { output: finalBody, missing } = substituteTokens(
       template.final_body ?? '',
       keys
     )
+
+    // If any #TOKEN# is still unfilled, refuse to return the body: the caller
+    // must supply every value first. Report exactly which keys are missing.
+    if (missing.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Missing values for one or more template variables.',
+          id: template.id,
+          vendor_id: template.vendor_id,
+          trigger: template.trigger,
+          missing_keys: missing,
+        },
+        { status: 422 }
+      )
+    }
 
     return NextResponse.json({
       id: template.id,

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Eye, Braces, Code2, Copy, Check, Wand2 } from 'lucide-react'
+import { Eye, Braces, Code2, Copy, Check, Wand2, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Field {
@@ -39,7 +39,7 @@ function substitute(
   return { output, missing: Array.from(missing) }
 }
 
-type Tab = 'preview' | 'json' | 'api'
+type Tab = 'preview' | 'json' | 'api' | 'response'
 
 export function TemplateTester({ vendorId, trigger, fields, finalBody, bodyJson }: Props) {
   // Pre-fill each input with its sample (dummy) value so the tester lands ready
@@ -49,6 +49,34 @@ export function TemplateTester({ vendorId, trigger, fields, finalBody, bodyJson 
   )
   const [tab, setTab] = useState<Tab>('preview')
   const [copied, setCopied] = useState<string | null>(null)
+  // "Paste response" workflow: the user pastes an API JSON response and we
+  // extract final_body to render as the email.
+  const [pasted, setPasted] = useState('')
+
+  // Parse the pasted API response and pull out final_body (if present).
+  const pastedResult = useMemo(() => {
+    const text = pasted.trim()
+    if (!text) return { html: '', error: null as string | null, info: null as string | null }
+    try {
+      const obj = JSON.parse(text)
+      if (typeof obj.final_body === 'string' && obj.final_body) {
+        return { html: obj.final_body, error: null, info: null }
+      }
+      if (Array.isArray(obj.missing_keys) && obj.missing_keys.length) {
+        return {
+          html: '',
+          error: null,
+          info: `No final_body — the API reported missing keys: ${obj.missing_keys.join(', ')}`,
+        }
+      }
+      if (typeof obj.error === 'string') {
+        return { html: '', error: obj.error, info: null }
+      }
+      return { html: '', error: 'No "final_body" field found in the pasted JSON.', info: null }
+    } catch {
+      return { html: '', error: 'Invalid JSON. Paste the full API response.', info: null }
+    }
+  }, [pasted])
 
   const { output, missing } = useMemo(
     () => substitute(finalBody, values),
@@ -161,6 +189,7 @@ export function TemplateTester({ vendorId, trigger, fields, finalBody, bodyJson 
                 { id: 'preview', label: 'Rendered preview', icon: Eye },
                 { id: 'json', label: 'JSON body', icon: Code2 },
                 { id: 'api', label: 'API request', icon: Braces },
+                { id: 'response', label: 'Paste response', icon: Send },
               ] as { id: Tab; label: string; icon: typeof Eye }[]
             ).map(({ id, label, icon: Icon }) => (
               <button
@@ -180,12 +209,12 @@ export function TemplateTester({ vendorId, trigger, fields, finalBody, bodyJson 
 
         <CardContent className="pt-4">
           {/* Missing-token banner (shown on preview + api tabs) */}
-          {tab !== 'json' && missing.length > 0 && (
+          {(tab === 'preview' || tab === 'api') && missing.length > 0 && (
             <div className="mb-3 rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
               {missing.length} unfilled: {missing.join(', ')}
             </div>
           )}
-          {tab !== 'json' && missing.length === 0 && fields.length > 0 && (
+          {(tab === 'preview' || tab === 'api') && missing.length === 0 && fields.length > 0 && (
             <div className="mb-3 rounded-md border border-emerald-400/40 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
               All variables filled.
             </div>
@@ -234,6 +263,43 @@ export function TemplateTester({ vendorId, trigger, fields, finalBody, bodyJson 
                   <code>{apiStr}</code>
                 </pre>
               </div>
+            </div>
+          )}
+
+          {tab === 'response' && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Paste the JSON response from{' '}
+                <code className="font-mono">/api/templates/body</code>. The{' '}
+                <code className="font-mono">final_body</code> is extracted and rendered as
+                the email below — exactly what the caller receives.
+              </p>
+              <textarea
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder='{ "id": 22, "final_body": "…", "missing_keys": [] }'
+                spellCheck={false}
+                className="h-40 w-full resize-y rounded-lg border border-input bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              />
+              {pastedResult.error && (
+                <div className="rounded-md border border-red-400/50 bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                  {pastedResult.error}
+                </div>
+              )}
+              {pastedResult.info && (
+                <div className="rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                  {pastedResult.info}
+                </div>
+              )}
+              {pastedResult.html && (
+                <div className="overflow-hidden rounded-lg border border-border bg-white">
+                  <iframe
+                    title="pasted-response-email"
+                    srcDoc={pastedResult.html}
+                    className="h-[560px] w-full"
+                  />
+                </div>
+              )}
             </div>
           )}
         </CardContent>

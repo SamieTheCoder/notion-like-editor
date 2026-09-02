@@ -79,6 +79,10 @@ export function sanitizeHref(raw: unknown): string {
   if (typeof raw !== 'string') return ''
   const value = raw.trim()
   if (value === '') return ''
+  // Merge-field tokens (#TOKEN#) resolve to a real URL at send time, so allow
+  // any href that contains a token — either a bare token, or a token embedded
+  // in a URL like https://app.example.com/r/#REGISTRATION_NO#.
+  if (/#[A-Z0-9_]+#/i.test(value)) return value
   if (/^(https?:|mailto:|tel:)/i.test(value)) return value
   if (/^(\/\/|\/|#)/.test(value)) return value
   if (/^[\w-]+(\.[\w-]+)+([/?#].*)?$/.test(value)) return `https://${value}`

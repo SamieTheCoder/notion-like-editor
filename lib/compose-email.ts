@@ -53,10 +53,136 @@ export function composeFinalBody(
   const foot = stripEmailChrome(footerHtml)
   // The template body comes from the editor and is already body-level markup.
   const body = (bodyHtml || '').trim()
-  return [head, body, foot].filter(Boolean).join('\n')
+  const composed = [head, body, foot].filter(Boolean).join('\n')
+  // Convert every <table>/<tr>/<td> — header, body and footer — into a
+  // div-based grid so the whole email is div-based (no <table> elements).
+  return tablesToDivs(composed)
 }
 
 export { stripEmailChrome }
+
+/** Table-only attributes that are meaningless on a div and get dropped. */
+const DROP_ATTRS = new Set([
+  'colspan',
+  'rowspan',
+  'align',
+  'valign',
+  'border',
+  'cellpadding',
+  'cellspacing',
+  'role',
+  'data-borders',
+  'data-density',
+])
+
+/** Table-layout CSS declarations that don't apply to a flex/div grid. */
+const DROP_CSS_PROPS = new Set(['border-collapse', 'vertical-align'])
+
+/** Table-specific utility classes that must not survive on a div. */
+const DROP_CLASSES = new Set(['border-collapse', 'align-top'])
+
+/**
+ * Convert ALL tables (`<table>/<tr>/<td>/<th>`) in a composed email into a
+ * div-based grid with ARIA table roles. Table layout is rendered inconsistently
+ * across browsers and email clients; divs with `role="table"/"row"/"cell"` keep
+ * the semantics for screen readers while giving predictable box rendering.
+ *
+ * - table  -> div role="table"        (display:block)
+ * - tr     -> div role="row"          (display:flex so cells sit side by side)
+ * - th     -> div role="columnheader" (flex:1 so columns share width)
+ * - td     -> div role="cell"         (flex:1)
+ * - tbody/thead/tfoot are unwrapped.
+ */
+export function tablesToDivs(html: string): string {
+  let out = html
+
+  out = out.replace(/<table\b([^>]*)>/gi, (_m, attrs: string) => {
+    return `<div role="table"${buildDivAttrs(attrs, 'display:block;width:100%;')}>`
+  })
+  out = out.replace(/<\/table>/gi, '</div>')
+
+  out = out.replace(/<\/?(?:tbody|thead|tfoot)\b[^>]*>/gi, '')
+
+  out = out.replace(/<tr\b([^>]*)>/gi, (_m, attrs: string) => {
+    return `<div role="row"${buildDivAttrs(attrs, 'display:flex;width:100%;')}>`
+  })
+  out = out.replace(/<\/tr>/gi, '</div>')
+
+  out = out.replace(/<th\b([^>]*)>/gi, (_m, attrs: string) => {
+    return `<div role="columnheader"${buildDivAttrs(attrs, 'flex:1 1 0%;')}>`
+  })
+  out = out.replace(/<\/th>/gi, '</div>')
+
+  out = out.replace(/<td\b([^>]*)>/gi, (_m, attrs: string) => {
+    return `<div role="cell"${buildDivAttrs(attrs, 'flex:1 1 0%;')}>`
+  })
+  out = out.replace(/<\/td>/gi, '</div>')
+
+  return out
+}
+
+/**
+ * Rebuild a table tag's attributes for its div replacement: drop table-only
+ * attributes, strip table-layout classes and CSS, dedupe declarations, and
+ * append the layout CSS. Returns a leading-space string ready to drop after the
+ * tag name.
+ */
+function buildDivAttrs(attrsRaw: string, extraCss: string): string {
+  const attrs = attrsRaw || ''
+  const kept: string[] = []
+  let styleValue = ''
+
+  const attrRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:="([^"]*)")?/g
+  let m: RegExpExecArray | null
+  while ((m = attrRe.exec(attrs)) !== null) {
+    const name = m[1].toLowerCase()
+    const value = m[2] ?? ''
+    if (name === 'style') {
+      styleValue = value
+    } else if (name === 'width' || name === 'height') {
+      // Numeric width/height attrs (e.g. width="600") become a CSS px value;
+      // percentage stays percentage. Fold into style rather than keep as attr.
+      const v = value.trim()
+      if (v) {
+        const css = /%$/.test(v) ? v : `${v.replace(/px$/, '')}px`
+        styleValue = `${styleValue.replace(/;?\s*$/, styleValue ? ';' : '')}${name}:${css};`
+      }
+    } else if (name === 'class') {
+      const remaining = value
+        .split(/\s+/)
+        .filter((c) => c && !DROP_CLASSES.has(c))
+        .join(' ')
+      if (remaining) kept.push(`class="${remaining}"`)
+    } else if (!DROP_ATTRS.has(name)) {
+      kept.push(m[2] !== undefined ? `${m[1]}="${value}"` : m[1])
+    }
+  }
+
+  const decls = new Map<string, string>()
+  const pushDecls = (css: string) => {
+    for (const part of css.split(';')) {
+      const seg = part.trim()
+      if (!seg) continue
+      const idx = seg.indexOf(':')
+      if (idx === -1) continue
+      const prop = seg.slice(0, idx).trim().toLowerCase()
+      const val = seg.slice(idx + 1).trim()
+      if (DROP_CSS_PROPS.has(prop)) continue
+      decls.set(prop, val)
+    }
+  }
+  pushDecls(styleValue)
+  pushDecls(extraCss)
+
+  const styleStr = Array.from(decls.entries())
+    .map(([p, v]) => `${p}:${v};`)
+    .join('')
+
+  const parts: string[] = []
+  if (kept.length) parts.push(kept.join(' '))
+  if (styleStr) parts.push(`style="${styleStr}"`)
+  return parts.length ? ` ${parts.join(' ')}` : ''
+}
 
 /**
  * Merge-field substitution.

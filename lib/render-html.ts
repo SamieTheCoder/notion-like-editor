@@ -9,6 +9,7 @@
 import { generateHTML } from '@tiptap/html/server'
 import type { JSONContent } from '@tiptap/core'
 import { extensions } from '@/lib/tiptap-extensions'
+import { tablesToDivs } from '@/lib/compose-email'
 
 /* ---------------------------------------------------------------- tailwind */
 
@@ -245,6 +246,10 @@ export function renderEmailBody(json: JSONContent): string {
   html = html.replace(/<\/details>/g, '</div>')
   html = html.replace(/<summary([^>]*)>/g, '<p$1>')
   html = html.replace(/<\/summary>/g, '</p>')
+
+  // Convert content tables into a div-based grid (shared with composeFinalBody,
+  // which also converts the shell). Divs render more consistently than tables.
+  html = tablesToDivs(html)
 
   // Convert class → style on every tag
   html = html.replace(

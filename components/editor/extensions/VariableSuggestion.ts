@@ -38,7 +38,7 @@ function cacheKey(vendorId: number | null) {
 }
 
 /** Fetch and memoize the variable list for a vendor. */
-function loadVariables(vendorId: number | null): Promise<Variable[]> {
+export function loadVariables(vendorId: number | null): Promise<Variable[]> {
   const key = cacheKey(vendorId)
   const hit = cache.get(key)
   if (hit) return Promise.resolve(hit)

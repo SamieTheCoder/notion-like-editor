@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Loader2, Eye, Braces, Copy, Check } from 'lucide-react
 import type { Editor } from '@tiptap/core'
 import { TiptapEditor } from './TiptapEditor'
 import { VariablePanel } from './VariablePanel'
+import { composeFinalBody } from '@/lib/compose-email'
 
 interface Props {
   vendorId: number
@@ -213,7 +214,10 @@ export function VendorBodyEditor({
       const data = await res.json().catch(() => ({}))
       const inlinedBody =
         typeof data.html === 'string' ? data.html : ''
-      setPreviewHtml(`${headHtml}\n${inlinedBody}\n${footerHtml}`)
+      // Compose exactly like the save/API path (header + body + footer, chrome
+      // stripped, all tables converted to divs) so the preview matches the
+      // stored final body and the API response byte-for-byte.
+      setPreviewHtml(composeFinalBody(headHtml, inlinedBody, footerHtml))
     } catch {
       toast.error('Could not render preview.')
     } finally {
